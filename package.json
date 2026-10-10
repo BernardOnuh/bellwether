@@ -1,0 +1,28 @@
+{
+  "name": "crowd-signal-agent",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "tsx --no-warnings=ExperimentalWarning src/main.ts",
+    "typecheck": "tsc",
+    "test": "node --no-warnings=ExperimentalWarning --import tsx --test test/*.test.ts",
+    "paper:first": "tsx --no-warnings=ExperimentalWarning scripts/first-paper-trade.ts",
+    "profiles": "tsx --no-warnings=ExperimentalWarning scripts/profiles.ts",
+    "simulate": "tsx --no-warnings=ExperimentalWarning scripts/simulate.ts",
+    "headline": "tsx --no-warnings=ExperimentalWarning scripts/headline.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@bitget-ai/bitget-agent-cli": "^3.0.0",
+    "dotenv": "^18.0.7",
+    "grammy": "^1.46.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "private": true
+}
