@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { candlesRange, type Candle } from './market.js';
 
-/** 1m candles for [start, end), cached on disk per pair and range so replays are repeatable. */
-export async function history1m(symbol: string, start: number, end: number): Promise<Candle[]> {
+/** Candles for [start, end), cached on disk per pair, interval and range so replays are repeatable. */
+export async function history(symbol: string, interval: string, start: number, end: number): Promise<Candle[]> {
   mkdirSync('data/cache', { recursive: true });
-  const file = `data/cache/${symbol}-${start}-${end}.json`;
+  const file = `data/cache/${symbol}-${interval}-${start}-${end}.json`;
   if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'));
-  const cs = await candlesRange(symbol, '1m', start, end);
+  const cs = await candlesRange(symbol, interval, start, end);
   writeFileSync(file, JSON.stringify(cs));
   return cs;
 }

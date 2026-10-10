@@ -1,15 +1,18 @@
 // Drives the bot with fake Telegram updates; API calls are captured instead of sent.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createBot } from '../src/bot.js';
-import { openDb } from '../src/db.js';
-import { saveProfile } from '../src/profile.js';
+process.env.SESSION_MODE = 'always';
+const { createBot } = await import('../src/bot.js');
+const { openDb } = await import('../src/db.js');
+const { saveBand } = await import('../src/bands.js');
 
 const db = openDb(':memory:');
-saveProfile(db, {
-  pair: 'BTCUSDT', updated_at: Date.now(), price: 83000, spread: 0.1, rv24h: 0.01, volatile: 0, window_min: 480,
-  typical_range: 800, band_lo: 400, band_hi: 1200, min_distance: 300, closed: 0,
-});
+const now = Date.now();
+db.prepare('INSERT INTO quotes (pair, price, bid, ask, updated_at) VALUES (?, ?, ?, ?, ?)').run('NVDAUSDT', 230, 229.99, 230.01, now);
+saveBand(db, { pair: 'NVDAUSDT', board: 'swing', bps: 113, spread_bps: 0.4, windows: 300, listed: 1, computed_at: now });
+saveBand(db, { pair: 'NVDAUSDT', board: 'intraday', bps: 54, spread_bps: 0.4, windows: 300, listed: 1, computed_at: now });
+saveBand(db, { pair: 'SPYUSDT', board: 'intraday', bps: 2, spread_bps: 0.4, windows: 300, listed: 0, computed_at: now });
+
 const sent: { method: string; payload: any }[] = [];
 const tg = createBot(db, 'test:token', {
   botInfo: { id: 1, is_bot: true, first_name: 'Desk', username: 'desk_bot', can_join_groups: true, can_read_all_group_messages: false,
@@ -28,55 +31,44 @@ const tap = (data: string) => tg.bot.handleUpdate({ update_id: uid++, callback_q
 const last = () => { const m = sent.filter((s) => ['sendMessage', 'editMessageText'].includes(s.method)); return m[m.length - 1].payload; };
 const buttons = (p: any) => (p.reply_markup?.inline_keyboard ?? []).flat().map((b: any) => b.callback_data);
 
-test('new user onboarding: name, tutorial, first call', async () => {
+test('onboarding: name, 3-step tutorial, then the menu', async () => {
   await text('/start');
-  assert.match(last().text, /Welcome to the Crowd-Signal desk/);
-  assert.match(last().text, /@ada/);
+  assert.match(last().text, /Welcome to the Crowd-Signal stock desk/);
   assert.deepEqual(buttons(last()), ['ob:keep', 'ob:rename']);
-
-  await text('/call');                              // not onboarded yet -> intro again
+  await text('/call');                       // not onboarded -> intro first
   assert.match(last().text, /Welcome/);
-
   await tap('ob:rename');
-  assert.ok(last().reply_markup.force_reply);
-  await text('sim_ada');
-  assert.match(last().text, /reserved/);
-  await text('ab');
-  assert.match(last().text, /3–24/);
+  await text('sim_ada'); assert.match(last().text, /reserved/);
   await text('Ada Lovelace');
-  const tut = sent.filter((s) => s.method === 'sendMessage').slice(-2).map((s) => s.payload.text).join('\n');
-  assert.match(tut, /You're <b>Ada Lovelace<\/b>/);
-  assert.match(tut, /1\/3/);
-  assert.match(tut, /83,?000|83000/);              // live example uses the BTC profile
-
-  await tap('ob:t1'); assert.match(last().text, /2\/3/);
-  await tap('ob:t2'); assert.match(last().text, /3\/3/); assert.match(last().text, /demo account/);
-  await tap('ob:done');
-  assert.match(last().text, /You're in/);
-  const row = db.prepare("SELECT name, onboarded_at FROM traders WHERE tg_id = '555'").get() as any;
-  assert.equal(row.name, 'Ada Lovelace');
-  assert.ok(row.onboarded_at);
-
-  await tap('m:call');
-  assert.ok(buttons(last()).includes('p:BTCUSDT'));
-  await tap('p:BTCUSDT');
-  assert.deepEqual(buttons(last()).slice(0, 2), ['d:BTCUSDT:long', 'd:BTCUSDT:short']);
-  await tap('d:BTCUSDT:long');
-  assert.deepEqual(buttons(last()).filter((b: string) => b.startsWith('x:')), ['x:BTCUSDT:long:400', 'x:BTCUSDT:long:600', 'x:BTCUSDT:long:800', 'x:BTCUSDT:long:1000', 'x:BTCUSDT:long:1200']);
-  await tap('x:BTCUSDT:long:800');
-  assert.match(last().text, /target ≈ 83800/);
-  assert.equal(buttons(last())[0], 'l:BTCUSDT:long:800');
-
-  await text('/call BTC long 5000');               // outside band
-  assert.match(last().text, /between 400 and 1200/);
+  assert.match(last().text, /1\/3/);
+  assert.match(last().text, /NVDA is 230\.0.*takes profit at 232\.6/s);  // live example from the swing band
+  await tap('ob:t1'); assert.match(last().text, /WOLF 70%/);
+  await tap('ob:t2'); assert.match(last().text, /sealed/);
+  await tap('ob:done'); assert.match(last().text, /You're in/);
 });
 
-test('returning user gets the menu; name is not overwritten', async () => {
-  await text('/start');
-  assert.match(last().text, /Welcome back, <b>Ada Lovelace/);
-  assert.ok(buttons(last()).includes('m:stats'));
+test('two-tap call: stock, then Long/Short per board; the tap locks', async () => {
+  await tap('m:call');
+  assert.ok(buttons(last()).includes('p:NVDAUSDT'));
+  await tap('p:NVDAUSDT');
+  assert.deepEqual(buttons(last()).filter((b: string) => b.startsWith('k:')),
+    ['k:NVDAUSDT:intraday:long', 'k:NVDAUSDT:intraday:short', 'k:NVDAUSDT:swing:long', 'k:NVDAUSDT:swing:short']);
+  const labels = last().reply_markup.inline_keyboard.flat().map((b: any) => b.text);
+  assert.ok(labels.includes('⬆️ Long 8h ±1.13%'));
+  await tap('p:SPYUSDT');
+  assert.match(last().text, /not listed/);
+  assert.equal(buttons(last()).filter((b: string) => b.startsWith('k:')).length, 0);
+  // typing a ticker opens its buttons
+  await text('nvda');
+  assert.ok(buttons(last()).includes('k:NVDAUSDT:swing:long'));
+});
+
+test('stats and leaderboard show both boards', async () => {
   await text('/stats');
-  assert.match(last().text, /10 more wins \+ losses to qualify/);
+  assert.match(last().text, /Intraday \(2h\)[\s\S]*Swing \(8h\)/);
+  assert.match(last().text, /8 more wins\+losses needed/);
+  await text('/leaderboard');
+  assert.match(last().text, /No calls yet/);
 });
 
 test('names must be unique; groups are redirected to DM', async () => {

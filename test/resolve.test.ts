@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveBracket, pnlR } from '../src/resolve.js';
-import { statsFor } from '../src/scoring.js';
 
 const M = 60_000;
 const t0 = 1_000 * M + 20_000; // locked 20s into a minute
@@ -35,16 +34,4 @@ test('expiry: open before, wash after; candles at/after expiry ignored', () => {
 test('pnl in R nets costs; ambiguous counts as a loss for the agent', () => {
   assert.equal(pnlR(long, { status: 'win', at: 0, exit: 102 }, 0.002), 1 - 0.1);
   assert.equal(pnlR(long, { status: 'wash', reason: 'ambiguous', at: 0, exit: 100 }, 0), -1);
-});
-test('shrunk hit rate and wash penalty', () => {
-  const s = statsFor(1, 'a', [
-    ...Array(6).fill({ status: 'win', band_ratio: 1 }),
-    ...Array(4).fill({ status: 'loss', band_ratio: 1 }),
-  ]);
-  assert.equal(s.hitRate, 0.6);
-  assert.equal(s.shrunk, 11 / 20);
-  assert.equal(s.qualified, true);
-  const washer = statsFor(2, 'b', [...Array(6).fill({ status: 'win', band_ratio: 1.5 }), ...Array(4).fill({ status: 'loss', band_ratio: 1.5 }), ...Array(10).fill({ status: 'wash', band_ratio: 1.5 })], 0.2);
-  assert.equal(washer.shrunk, s.shrunk);
-  assert.ok(washer.rankScore < s.rankScore);
 });

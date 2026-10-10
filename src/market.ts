@@ -57,6 +57,17 @@ export async function ticker(symbol: string): Promise<Ticker> {
   return { symbol, ts: +t.ts, serverTs: Number(b.requestTime), last: +t.lastPrice, bid, ask, mid: (bid + ask) / 2 };
 }
 
+/** One request for every USDT perp ticker. */
+export async function allTickers(): Promise<Map<string, Ticker>> {
+  const b = await get('/api/v3/market/tickers', { category: CATEGORY });
+  const out = new Map<string, Ticker>();
+  for (const t of b.data as Record<string, string>[]) {
+    const bid = +t.bid1Price, ask = +t.ask1Price;
+    out.set(t.symbol, { symbol: t.symbol, ts: +t.ts, serverTs: Number(b.requestTime), last: +t.lastPrice, bid, ask, mid: (bid + ask) / 2 });
+  }
+  return out;
+}
+
 const instCache = new Map<string, Instrument>();
 export async function instrument(symbol: string): Promise<Instrument> {
   const hit = instCache.get(symbol);

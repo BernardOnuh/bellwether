@@ -1,38 +1,44 @@
 import { Bot, InlineKeyboard, type Context } from 'grammy';
-import { AGENT, PAIRS, RULES, pairBySymbol, pairByLabel, type Direction } from './config.js';
+import { AGENT, BOARDS, BOARD_IDS, PAIRS, SCORING, label, pairBySymbol, pairByLabel, type BoardId, type Direction } from './config.js';
 import { execute, getTrade, reject, type AgentTrade } from './agent.js';
-import { CallRejected, checkCall, fmt, lockCall } from './calls.js';
+import { CallRejected, fmt, lockCall, type CallRow } from './calls.js';
 import { setSetting, getSetting, type DB } from './db.js';
-import { loadProfile } from './profile.js';
-import { allStats, leaderboard, type CallRow } from './scoring.js';
+import { loadBand, loadQuote } from './bands.js';
+import { boardStats, leaderboard, TIER_BADGE, type TraderStats } from './scoring.js';
+import { crossesWeekend, sessionLine, sessionOpen } from './sessions.js';
 import type { Signal } from './consensus.js';
 
-const BAND_STEPS = [0.5, 0.75, 1, 1.25, 1.5];
-const label = (sym: string) => pairBySymbol(sym)?.label ?? sym;
-const win = (m: number) => (m >= 60 ? `${m / 60}h` : `${m}m`);
 const pct = (x: number) => (Number.isFinite(x) ? `${(x * 100).toFixed(0)}%` : '–');
+const bandPct = (bps: number) => `±${(bps / 100).toFixed(2)}%`;
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+const etTime = (t: number) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' }) + ' ET';
+const short = (b: BoardId) => (BOARDS[b].horizonMin >= 60 ? `${BOARDS[b].horizonMin / 60}h` : `${BOARDS[b].horizonMin}m`);
 const HTML = { parse_mode: 'HTML' as const };
 
 interface Trader { id: number; name: string; onboarded_at: number | null }
 
 export function describeCall(c: CallRow) {
   const icon = { open: '⏳', win: '✅', loss: '❌', wash: '➖' }[c.status];
-  const tail = c.status === 'open' ? `expires ${new Date(c.expires_at).toISOString().slice(11, 16)} UTC`
-    : c.status === 'wash' ? `wash (${c.wash_reason})` : c.status;
-  return `${icon} #${c.id} ${label(c.pair)} ${c.direction.toUpperCase()} ±${fmt(c.distance, c.entry)} from ${fmt(c.entry, c.entry)} → ${tail}`;
+  const tail = c.status === 'open' ? `until ${etTime(c.expires_at)}` : c.status === 'wash' ? `wash (${c.wash_reason})` : c.status === 'win' ? 'won' : 'lost';
+  return `${icon} ${label(c.pair)} ${c.direction.toUpperCase()} ${short(c.board)} ${bandPct(c.band_bps)} from ${fmt(c.entry, c.entry)} → ${tail}`;
 }
 
 export function describeTrade(t: AgentTrade) {
   const r = t.pnl_r !== null ? ` ${t.pnl_r >= 0 ? '+' : ''}${t.pnl_r.toFixed(2)}R` : '';
-  return `🤖 Agent #${t.id} ${label(t.pair)} ${t.direction.toUpperCase()} qty ${t.qty} entry ${fmt(t.entry, t.entry)} `
+  return `🤖 Agent #${t.id} ${label(t.pair)} ${t.direction.toUpperCase()} ${t.horizon_min / 60}h qty ${t.qty} entry ${fmt(t.entry, t.entry)} `
     + `TP ${fmt(t.target, t.entry)} SL ${fmt(t.stop, t.entry)} [${t.status}${r}]${t.risk_note ? ` — ${t.risk_note}` : ''}`;
+}
+
+function statusLine(s: TraderStats) {
+  if (s.eliminated) return '⛔ eliminated';
+  const badge = s.tier ? `${TIER_BADGE[s.tier]} ${s.tier}` : s.qualified ? 'qualified, below 55%' : 'not qualified yet';
+  return s.warmup && s.warmupEndsAt ? `${badge} · warmup until ${new Date(s.warmupEndsAt).toISOString().slice(0, 10)}` : badge;
 }
 
 const menu = () => new InlineKeyboard()
   .text('📈 Make a call', 'm:call').text('📋 My calls', 'm:mycalls').row()
   .text('🏆 Leaderboard', 'm:leaderboard').text('📊 My stats', 'm:stats').row()
-  .text('💱 Pairs', 'm:pairs').text('📖 Rules', 'm:rules');
+  .text('💹 Stocks & bands', 'm:board').text('📖 Rules', 'm:rules');
 
 /** Leaderboard names: 3–24 chars, letters/digits/space/_ . -, not reserved for simulated traders, unique. */
 export function validateName(db: DB, name: string, selfId?: number): string | null {
@@ -52,89 +58,96 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   const awaitingName = new Set<string>();
 
   // ---------- trader records ----------
-  function findTrader(ctx: Context): Trader | undefined {
-    return db.prepare('SELECT id, name, onboarded_at FROM traders WHERE tg_id = ?').get(String(ctx.from!.id)) as Trader | undefined;
-  }
+  const findTrader = (ctx: Context) =>
+    db.prepare('SELECT id, name, onboarded_at FROM traders WHERE tg_id = ?').get(String(ctx.from!.id)) as Trader | undefined;
+
   /** Create the trader on first contact with a provisional, unique name. Never overwrites a chosen name. */
-  function getTrader(ctx: Context): Trader & { isNew: boolean } {
+  function getTrader(ctx: Context): Trader {
     const u = ctx.from!;
     const existing = findTrader(ctx);
     if (existing) {
       db.prepare('UPDATE traders SET username = ? WHERE id = ?').run(u.username ?? null, existing.id);
-      return { ...existing, isNew: false };
+      return existing;
     }
     let base = (u.username ? `@${u.username}` : [u.first_name, u.last_name].filter(Boolean).join(' ')).slice(0, 20);
-    if (validateName(db, base)?.startsWith('Use') || base.length < 3) base = `trader${u.id % 100000}`;
+    if (base.length < 3 || validateName(db, base)?.startsWith('Use')) base = `trader${u.id % 100000}`;
     let name = base;
     for (let i = 2; validateName(db, name); i++) name = `${base}${i}`;
     db.prepare('INSERT INTO traders (tg_id, name, username, created_at) VALUES (?, ?, ?, ?)').run(String(u.id), name, u.username ?? null, Date.now());
-    return { ...findTrader(ctx)!, isNew: true };
+    return findTrader(ctx)!;
   }
 
-  // ---------- text blocks ----------
+  // ---------- text ----------
   const rulesText = () => [
-    '<b>How calls work</b>',
-    'You pick the pair, the direction and a distance. The bot does the rest:',
-    '• <b>Entry</b>: the market price when you tap Lock, stamped by the exchange clock.',
-    '• <b>Target</b>: your distance in your direction. <b>Stop</b>: the same distance against you (1:1).',
-    `• <b>Expiry</b>: ${RULES.volatileWindowMin}m for volatile pairs, ${RULES.calmWindowMin / 60}h for calm ones.`,
-    '• <b>Win</b>: target hit first. <b>Loss</b>: stop hit first. <b>Wash</b>: neither by expiry, or both inside the same minute.',
-    `• Distance must sit inside the pair's band (see /pairs) and above ${RULES.costMultiple}x trading costs.`,
-    `• One open call per pair, ${RULES.dailyCap} calls per day.`,
+    '<b>How it works</b>',
+    '• Pick a stock and tap <b>Long</b> or <b>Short</b> on one of two boards. Your tap locks the live Bitget price. No take-backs.',
+    `• The house sets take-profit and stop-loss: the same distance both ways (1:1), sized to how far that stock usually moves. `
+      + `<b>Intraday</b> calls last ${short('intraday')}, <b>Swing</b> calls ${short('swing')}.`,
+    '• ✅ take-profit first = win · ❌ stop first = loss · ➖ neither by expiry = wash (doesn\'t count).',
+    `• Calls open Mon–Fri 04:00–16:00 New York time. Limits: Intraday ${BOARDS.intraday.dailyCap}/day (${BOARDS.intraday.minGapMin} min apart), `
+      + `Swing ${BOARDS.swing.dailyCap}/day (${BOARDS.swing.minGapMin} min apart), one open call per stock per board.`,
     '',
-    '<b>Ranking</b>: (wins + 5) / (wins + losses + 10). Washes don\'t count, but washing far more often than the crowd lowers your rank. '
-      + `You need ${RULES.minDecided} wins + losses to qualify.`,
+    '<b>Scoring</b> (each board separately)',
+    `• <b>Qualify</b>: ${SCORING.qualifyMinDecisive}+ wins+losses and 90% statistical confidence you beat a coin flip. Luck doesn't qualify.`,
+    '• <b>Tiers</b> on your hit rate (pulled toward 50% for small samples): ✅ BASE 55% 1× · 🎯 SHARP 60% 1.2× · 🐺 WOLF 70% 2×.',
+    `• <b>Points</b>: each win from the last ${SCORING.pointsDecayDays} days × your tier, fading to zero over ${SCORING.pointsDecayDays} days, best ${SCORING.winCap} count.`,
+    `• <b>Warmup</b>: your first ${SCORING.warmupDays} days build your record but earn no points.`,
+    '• <b>Copying</b>: habitually opening the same trade minutes after someone else turns your copied wins into losses.',
+    `• <b>Elimination</b>: after ${SCORING.elimMinDecisive}+ calls, a hit rate confidently below 45% removes you from the board.`,
+    '',
+    '🔒 Open calls are sealed: others see only a fingerprint until they resolve.',
   ].join('\n');
 
   const helpText = [
     '<b>Commands</b>',
-    '/call — make a call (or <code>/call BTC long 800</code>)',
+    '/call — make a call (or <code>/call NVDA long 8h</code>)',
     '/mycalls — your recent calls',
-    '/stats — your hit rate and rank',
-    '/leaderboard — top traders',
-    '/pairs — pairs, expiry windows and allowed distances',
-    '/rules — how calls are scored',
+    '/stats — your tier, points and progress',
+    '/leaderboard — top traders on each board',
+    '/board — stocks, bands and market hours',
+    '/rules — how scoring works',
     '/name — change your leaderboard name',
   ].join('\n');
 
   function exampleLine() {
-    const pr = loadProfile(db, 'BTCUSDT');
-    if (!pr) return 'Example: BTC long, distance 800 → target entry + 800, stop entry − 800.';
-    const d = Number((pr.typical_range).toPrecision(2));
-    return `Example right now: BTC is ${fmt(pr.price, pr.price)}. A <b>long</b> with distance <b>${fmt(d, pr.price)}</b> `
-      + `targets ${fmt(pr.price + d, pr.price)} and stops at ${fmt(pr.price - d, pr.price)}, expiring in ${win(pr.window_min)}.`;
+    const q = loadQuote(db, 'NVDAUSDT'), b = loadBand(db, 'NVDAUSDT', 'swing');
+    if (!q || !b) return 'Example: NVDA long on Swing → take-profit about 1% above entry, stop 1% below, 8 hours to get there.';
+    const d = (q.price * b.bps) / 1e4;
+    return `Example right now: NVDA is ${fmt(q.price, q.price)}. A <b>Swing long</b> takes profit at ${fmt(q.price + d, q.price)} `
+      + `and stops at ${fmt(q.price - d, q.price)} (${bandPct(b.bps)}), with ${short('swing')} to get there.`;
   }
 
   const TUTORIAL = [
-    () => `<b>1/3 · Making a call</b>\n\nPick a <b>pair</b>, a <b>direction</b> (long or short) and a <b>distance</b>. `
-      + 'That\'s it. Entry, stop and expiry are set for you, so nobody can cherry-pick prices.\n\n' + exampleLine(),
-    () => '<b>2/3 · How you\'re scored</b>\n\n✅ target first = win · ❌ stop first = loss · ➖ neither = wash\n\n'
-      + 'Rank = (wins + 5) / (wins + losses + 10), so a lucky 3-for-3 doesn\'t top the board. '
-      + `You qualify after ${RULES.minDecided} wins + losses. Tiny targets are blocked, huge never-hit targets are capped, `
-      + `and you get one open call per pair and ${RULES.dailyCap} per day.`,
-    () => '<b>3/3 · What your calls are used for</b>\n\nWhen several top-ranked traders call the same pair the same way, '
-      + 'an AI agent proposes a trade. A human confirms it, and it runs on a <b>Bitget demo account</b> (paper money).\n\n'
-      + '• This is a game with no deposits. We will never ask for money, keys or passwords.\n'
-      + '• Your leaderboard name and calls are visible to other players.\n'
-      + '• Nothing here is financial advice.',
+    () => '<b>1/3 · Making a call</b>\n\nPick a stock, then tap <b>Long</b> (up) or <b>Short</b> (down) on the '
+      + `<b>Intraday</b> (${short('intraday')}) or <b>Swing</b> (${short('swing')}) board. That's it: two taps.\n\n`
+      + 'Your tap locks the live price. The house sets take-profit and stop at the same distance, so every call is an equal test of skill.\n\n'
+      + exampleLine(),
+    () => '<b>2/3 · How you\'re ranked</b>\n\n✅ take-profit first = win · ❌ stop first = loss · ➖ neither = wash\n\n'
+      + `After ${SCORING.qualifyMinDecisive}+ wins+losses, you qualify once we're 90% sure you beat a coin flip. `
+      + 'Then your hit rate sets a tier: ✅ BASE 55% · 🎯 SHARP 60% · 🐺 WOLF 70% (2× points).\n\n'
+      + `Points come from your last ${SCORING.pointsDecayDays} days of wins, so the board rewards current form. `
+      + `Your first ${SCORING.warmupDays} days are warmup: they build your record but don't earn points.`,
+    () => '<b>3/3 · What your calls power</b>\n\nWhen several top-tier traders call the same stock the same way, an AI agent '
+      + 'proposes that trade. A human confirms it, and it runs on a <b>Bitget demo account</b> (paper money).\n\n'
+      + '• 🔒 Your open calls are sealed. Nobody can copy them live, and copying others doesn\'t pay.\n'
+      + '• 🕓 Calls open Mon–Fri 04:00–16:00 New York time.\n'
+      + '• No deposits. We will never ask for money, keys or passwords. Not financial advice.',
   ];
 
   // ---------- onboarding ----------
   async function startOnboarding(ctx: Context, t: Trader) {
     await ctx.reply(
-      `👋 <b>Welcome to the Crowd-Signal desk!</b>\n\nCall where markets go next, get scored against real Bitget prices, `
-      + 'and climb the leaderboard. The best-ranked calls feed an AI trading agent.\n\n'
+      '👋 <b>Welcome to the Crowd-Signal stock desk!</b>\n\nCall where US stocks go next, get graded against live Bitget prices, '
+      + 'and earn a tier on the leaderboard. The best callers steer an AI trading agent.\n\n'
       + `Your leaderboard name will be <b>${esc(t.name)}</b>.`,
       { ...HTML, reply_markup: new InlineKeyboard().text('👍 Keep this name', 'ob:keep').text('✏️ Choose another', 'ob:rename') },
     );
   }
 
   async function tutorialStep(ctx: Context, i: number) {
-    const kb = i < TUTORIAL.length - 1 ? new InlineKeyboard().text('Next →', `ob:t${i + 1}`)
-      : new InlineKeyboard().text('🚀 I\'m in', 'ob:done');
-    const text = TUTORIAL[i]();
-    if (ctx.callbackQuery) await ctx.editMessageText(text, { ...HTML, reply_markup: kb });
-    else await ctx.reply(text, { ...HTML, reply_markup: kb });
+    const kb = i < TUTORIAL.length - 1 ? new InlineKeyboard().text('Next →', `ob:t${i + 1}`) : new InlineKeyboard().text('🚀 I\'m in', 'ob:done');
+    if (ctx.callbackQuery) await ctx.editMessageText(TUTORIAL[i](), { ...HTML, reply_markup: kb });
+    else await ctx.reply(TUTORIAL[i](), { ...HTML, reply_markup: kb });
   }
 
   async function askName(ctx: Context) {
@@ -142,7 +155,6 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     await ctx.reply('Send me the name you want on the leaderboard (3–24 characters).', { reply_markup: { force_reply: true } });
   }
 
-  /** Commands that need a finished onboarding call this first. */
   async function requireOnboarded(ctx: Context): Promise<Trader | null> {
     const t = getTrader(ctx);
     if (t.onboarded_at) return t;
@@ -151,13 +163,11 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     return null;
   }
 
-  // Calls are personal: keep the bot in private chats. In groups, point people to a DM.
+  // Calls are personal: keep the bot in private chats.
   bot.use(async (ctx, next) => {
     if (!ctx.from || ctx.from.is_bot) return;
     if (ctx.chat && ctx.chat.type !== 'private') {
-      if (ctx.message?.text?.startsWith('/')) {
-        await ctx.reply(`Calls are made in private. Tap here: https://t.me/${ctx.me.username}?start=group`);
-      }
+      if (ctx.message?.text?.startsWith('/')) await ctx.reply(`Calls are made in private. Tap here: https://t.me/${ctx.me.username}?start=group`);
       return;
     }
     await next();
@@ -167,38 +177,26 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     const t = getTrader(ctx);
     awaitingName.delete(String(ctx.from!.id));
     if (!t.onboarded_at) return startOnboarding(ctx, t);
-    await ctx.reply(`Welcome back, <b>${esc(t.name)}</b>. What next?`, { ...HTML, reply_markup: menu() });
+    await ctx.reply(`Welcome back, <b>${esc(t.name)}</b>.\n${sessionLine(Date.now())}`, { ...HTML, reply_markup: menu() });
   });
 
-  bot.callbackQuery('ob:keep', async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.editMessageReplyMarkup();
-    await tutorialStep(ctx, 0);
-  });
-  bot.callbackQuery('ob:rename', async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await ctx.editMessageReplyMarkup();
-    await askName(ctx);
-  });
-  bot.callbackQuery(/^ob:t(\d)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await tutorialStep(ctx, Number(ctx.match[1]));
-  });
+  bot.callbackQuery('ob:keep', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.editMessageReplyMarkup(); await tutorialStep(ctx, 0); });
+  bot.callbackQuery('ob:rename', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.editMessageReplyMarkup(); await askName(ctx); });
+  bot.callbackQuery(/^ob:t(\d)$/, async (ctx) => { await ctx.answerCallbackQuery(); await tutorialStep(ctx, Number(ctx.match[1])); });
   bot.callbackQuery('ob:done', async (ctx) => {
     const t = getTrader(ctx);
     db.prepare('UPDATE traders SET onboarded_at = COALESCE(onboarded_at, ?) WHERE id = ?').run(Date.now(), t.id);
     await ctx.answerCallbackQuery({ text: 'Welcome aboard!' });
     await ctx.editMessageReplyMarkup();
-    await ctx.reply(`🎉 You're in, <b>${esc(t.name)}</b>. Make your first call, it takes three taps.\n\n${helpText}`, {
-      ...HTML, reply_markup: new InlineKeyboard().text('📈 Make my first call', 'm:call').row().text('💱 See pairs first', 'm:pairs'),
+    await ctx.reply(`🎉 You're in, <b>${esc(t.name)}</b>.\n${sessionLine(Date.now())}\n\n${helpText}`, {
+      ...HTML, reply_markup: new InlineKeyboard().text('📈 Make my first call', 'm:call').row().text('💹 See stocks & bands', 'm:board'),
     });
   });
 
   bot.command('name', async (ctx) => {
     getTrader(ctx);
     const arg = ctx.match.trim();
-    if (!arg) return askName(ctx);
-    return setName(ctx, arg);
+    return arg ? setName(ctx, arg) : askName(ctx);
   });
 
   async function setName(ctx: Context, name: string) {
@@ -217,22 +215,57 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   bot.command('help', (ctx) => ctx.reply(helpText, { ...HTML, reply_markup: menu() }));
   bot.command('rules', (ctx) => ctx.reply(rulesText(), HTML));
 
-  // ---------- views shared by commands and menu buttons ----------
-  async function showPairs(ctx: Context) {
+  // ---------- views ----------
+  async function showBoard(ctx: Context) {
     const lines = PAIRS.map((p) => {
-      const pr = loadProfile(db, p.symbol);
-      if (!pr) return `${p.label}: no data yet`;
-      const state = pr.closed ? ' (closed)' : pr.band_lo > pr.band_hi ? ' (too quiet)' : '';
-      return `<b>${p.label}</b>${state}: ${fmt(pr.price, pr.price)} · ${win(pr.window_min)} · distance ${fmt(pr.band_lo, pr.price)}–${fmt(pr.band_hi, pr.price)}`;
+      const q = loadQuote(db, p.symbol);
+      const bands = BOARD_IDS.map((b) => { const x = loadBand(db, p.symbol, b); return x?.listed ? `${short(b)} ${bandPct(x.bps)}` : `${short(b)} –`; });
+      return `<b>${p.label}</b> ${q ? fmt(q.price, q.price) : '…'} · ${bands.join(' · ')}`;
     });
-    await ctx.reply(lines.join('\n'), HTML);
+    await ctx.reply(`${sessionLine(Date.now())}\n\n${lines.join('\n')}\n\nBands are the take-profit/stop distance. They're recalibrated daily from the last 30 days.`, HTML);
   }
 
   async function showPairPicker(ctx: Context) {
+    const now = Date.now();
+    if (!sessionOpen(now)) return ctx.reply(`${sessionLine(now)}\n\nMeanwhile: /leaderboard · /stats · /board`);
     const kb = new InlineKeyboard();
-    PAIRS.forEach((pp, i) => { kb.text(pp.label, `p:${pp.symbol}`); if (i % 4 === 3) kb.row(); });
+    PAIRS.forEach((pp, i) => { kb.text(pp.label, `p:${pp.symbol}`); if (i % 5 === 4) kb.row(); });
     kb.row().text('Cancel', 'cancel');
-    await ctx.reply('Pick a pair:', { reply_markup: kb });
+    await ctx.reply(`${sessionLine(now)}\nPick a stock:`, { reply_markup: kb });
+  }
+
+  async function showDirection(ctx: Context, pair: string) {
+    const now = Date.now();
+    const q = loadQuote(db, pair);
+    const kb = new InlineKeyboard();
+    const notes: string[] = [];
+    for (const b of BOARD_IDS) {
+      const band = loadBand(db, pair, b);
+      if (!band?.listed) { notes.push(`${BOARDS[b].title}: not listed for ${label(pair)}.`); continue; }
+      if (crossesWeekend(now + BOARDS[b].horizonMin * 60_000)) { notes.push(`${BOARDS[b].title}: would run into the weekend.`); continue; }
+      kb.text(`⬆️ Long ${short(b)} ${bandPct(band.bps)}`, `k:${pair}:${b}:long`).text(`⬇️ Short ${short(b)} ${bandPct(band.bps)}`, `k:${pair}:${b}:short`).row();
+    }
+    kb.text('← Stocks', 'm:call').text('Cancel', 'cancel');
+    const text = `<b>${label(pair)}</b> · ${esc(pairBySymbol(pair)!.name)}${q ? ` · ${fmt(q.price, q.price)}` : ''}\n\n`
+      + 'Tap a button to <b>lock at the live price</b>. No take-backs.\n'
+      + `Intraday expires in ${short('intraday')}, Swing in ${short('swing')}.` + (notes.length ? `\n\n${notes.join('\n')}` : '');
+    if (ctx.callbackQuery) await ctx.editMessageText(text, { ...HTML, reply_markup: kb });
+    else await ctx.reply(text, { ...HTML, reply_markup: kb });
+  }
+
+  async function lock(ctx: Context, t: Trader, pair: string, board: BoardId, direction: Direction) {
+    try {
+      const c = await lockCall(db, { traderId: t.id, pair, board, direction });
+      const first = (db.prepare('SELECT COUNT(*) AS n FROM calls WHERE trader_id = ?').get(t.id) as { n: number }).n === 1;
+      const text = `🔒 <b>Locked</b> ${label(pair)} ${direction.toUpperCase()} · ${BOARDS[board].title}\n`
+        + `Entry ${fmt(c.entry, c.entry)} · TP ${fmt(c.target, c.entry)} · SL ${fmt(c.stop, c.entry)} (${bandPct(c.band_bps)})\n`
+        + `Expires ${etTime(c.expires_at)}\n\nSealed as <code>${c.commit_hash.slice(0, 12)}</code>. Others see only this until it resolves.`
+        + (first ? '\n\n🎉 Your first call! I\'ll message you when it resolves.' : '');
+      if (ctx.callbackQuery) await ctx.editMessageText(text, HTML); else await ctx.reply(text, HTML);
+    } catch (e) {
+      if (!(e instanceof CallRejected)) throw e;
+      if (ctx.callbackQuery) await ctx.editMessageText(`🚫 ${e.message}`); else await ctx.reply(`🚫 ${e.message}`);
+    }
   }
 
   async function showMyCalls(ctx: Context, t: Trader) {
@@ -242,116 +275,71 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   }
 
   async function showStats(ctx: Context, t: Trader) {
-    const s = allStats(db).get(t.id)!;
-    await ctx.reply([
-      `<b>${esc(t.name)}</b>`,
-      `Calls: ${s.calls} resolved, ${s.open} open`,
-      `W / L / Wash: ${s.wins} / ${s.losses} / ${s.washes}`,
-      `Hit rate: ${pct(s.hitRate)} · shrunk ${pct(s.shrunk)} · wash rate ${pct(s.washRate)}`,
-      `Avg distance: ${Number.isFinite(s.avgBand) ? s.avgBand.toFixed(2) + 'x typical move' : '–'}`,
-      s.qualified ? `Rank score <b>${(s.rankScore * 100).toFixed(1)}</b>` : `${RULES.minDecided - s.wins - s.losses} more wins + losses to qualify`,
-    ].join('\n'), HTML);
+    const now = Date.now();
+    const blocks = BOARD_IDS.map((b) => {
+      const s = boardStats(db, b, now).get(t.id)!;
+      const need = s.qualified ? '' : `\n   ${Math.max(0, SCORING.qualifyMinDecisive - s.decisive)} more wins+losses needed, then confidence above 50% (now ${pct(s.lb)})`;
+      return `<b>${BOARDS[b].title}</b>: ${statusLine(s)}\n   ${s.wins}W ${s.losses}L ${s.washes} wash · hit ${pct(s.hitRate)} · points ${s.points.toFixed(2)}`
+        + (s.copier ? '\n   ⚠️ flagged as copier: copied wins count as losses' : '') + need;
+    });
+    await ctx.reply(`<b>${esc(t.name)}</b>\n\n${blocks.join('\n\n')}`, HTML);
   }
 
-  async function showLeaderboard(ctx: Context) {
-    const rows = leaderboard(db).slice(0, 15);
-    if (!rows.length) return ctx.reply('No calls yet. Be the first!', { reply_markup: new InlineKeyboard().text('📈 Make a call', 'm:call') });
-    await ctx.reply(rows.map((s, i) =>
-      `${s.qualified ? `${i + 1}.` : '·'} ${esc(s.name)} ${(s.rankScore * 100).toFixed(1)} · ${s.wins}W ${s.losses}L ${s.washes}wash · hit ${pct(s.hitRate)}`,
-    ).join('\n') + `\n\n· = not yet qualified (${RULES.minDecided} wins + losses)`, HTML);
+  async function showLeaderboard(ctx: Context, only?: BoardId) {
+    const parts = (only ? [only] : BOARD_IDS).map((b) => {
+      const rows = leaderboard(db, b).slice(0, 10);
+      if (!rows.length) return `<b>${BOARDS[b].title}</b>\nNo calls yet.`;
+      return `<b>${BOARDS[b].title}</b>\n` + rows.map((s, i) =>
+        `${i + 1}. ${s.tier ? TIER_BADGE[s.tier] : s.eliminated ? '⛔' : '·'} ${esc(s.name)} — ${s.points.toFixed(1)} pts · ${s.wins}W ${s.losses}L · ${pct(s.hitRate)}`).join('\n');
+    });
+    await ctx.reply(parts.join('\n\n') + '\n\n🐺 WOLF · 🎯 SHARP · ✅ BASE · · not qualified', HTML);
   }
 
   // ---------- call flow ----------
-  // /call             -> pick pair, direction, distance with buttons
-  // /call BTC long 800 -> straight to the Lock button
+  // /call             -> stock picker, then Long/Short per board (the tap locks)
+  // /call NVDA         -> straight to the Long/Short buttons
+  // /call NVDA long 8h -> locks immediately
   bot.command('call', async (ctx) => {
     const t = await requireOnboarded(ctx);
     if (!t) return;
-    const [p, d, dist] = ctx.match.trim().split(/\s+/);
-    if (p && d && dist) {
-      const pair = pairByLabel(p);
-      const dir = d.toLowerCase().startsWith('l') ? 'long' : d.toLowerCase().startsWith('s') ? 'short' : null;
-      if (!pair || !dir || !(Number(dist) > 0)) return ctx.reply('Usage: /call BTC long 800');
-      return confirmStep(ctx, t.id, pair.symbol, dir, Number(dist));
-    }
-    await showPairPicker(ctx);
+    const [p, d, h] = ctx.match.trim().split(/\s+/).filter(Boolean);
+    if (!p) return showPairPicker(ctx);
+    const pair = pairByLabel(p);
+    if (!pair) return ctx.reply(`Unknown stock "${esc(p)}". Try one of: ${PAIRS.map((x) => x.label).join(', ')}`);
+    if (!d) return sessionOpen(Date.now()) ? showDirection(ctx, pair.symbol) : ctx.reply(sessionLine(Date.now()));
+    const dir = d.toLowerCase().startsWith('l') ? 'long' : d.toLowerCase().startsWith('s') ? 'short' : null;
+    const board = !h || /^(8h|swing|s)$/i.test(h) ? 'swing' : /^(2h|intraday|i)$/i.test(h) ? 'intraday' : null;
+    if (!dir || !board) return ctx.reply('Usage: /call NVDA long 8h   (or 2h)');
+    await lock(ctx, t, pair.symbol, board, dir);
   });
 
   bot.callbackQuery(/^p:(\w+)$/, async (ctx) => {
-    const pair = ctx.match[1];
     await ctx.answerCallbackQuery();
-    const pr = loadProfile(db, pair);
-    const note = pr?.closed ? '\n⚠️ This market looks closed right now.' : '';
-    await ctx.editMessageText(`${label(pair)}${pr ? ` is ${fmt(pr.price, pr.price)}` : ''}. Which way?${note}`, {
-      reply_markup: new InlineKeyboard().text('⬆️ Long (up)', `d:${pair}:long`).text('⬇️ Short (down)', `d:${pair}:short`).row().text('Cancel', 'cancel'),
-    });
+    if (!sessionOpen(Date.now())) return ctx.editMessageText(sessionLine(Date.now()));
+    await showDirection(ctx, ctx.match[1]);
   });
 
-  bot.callbackQuery(/^d:(\w+):(long|short)$/, async (ctx) => {
-    const [, pair, dir] = ctx.match;
-    await ctx.answerCallbackQuery();
-    const pr = loadProfile(db, pair);
-    if (!pr) return ctx.editMessageText('No data for this pair yet, try again in a minute.');
-    const kb = new InlineKeyboard();
-    const steps = [...new Set(BAND_STEPS.map((k) => Number(Math.min(pr.band_hi, Math.max(pr.band_lo, k * pr.typical_range)).toPrecision(4))))]
-      .filter((x) => x >= pr.band_lo && x <= pr.band_hi);
-    steps.forEach((x) => kb.text(fmt(x, pr.price), `x:${pair}:${dir}:${x}`));
-    kb.row().text('Cancel', 'cancel');
-    await ctx.editMessageText(
-      `${label(pair)} ${dir.toUpperCase()} · price ${fmt(pr.price, pr.price)} · expiry ${win(pr.window_min)}\n\n`
-      + 'How far should price move? Smaller = hit more often but closer stop; larger = more washes.\n'
-      + `Allowed ${fmt(pr.band_lo, pr.price)}–${fmt(pr.band_hi, pr.price)}, or type /call ${label(pair)} ${dir} <distance>`,
-      { reply_markup: kb },
-    );
-  });
-
-  async function confirmStep(ctx: Context, traderId: number, pair: string, dir: Direction, distance: number) {
-    const pr = loadProfile(db, pair);
-    try { checkCall(db, { traderId, pair, direction: dir, distance, now: Date.now(), profile: pr }); }
-    catch (e) {
-      if (!(e instanceof CallRejected)) throw e;
-      return ctx.callbackQuery ? ctx.editMessageText(`🚫 ${e.message}`) : ctx.reply(`🚫 ${e.message}`);
-    }
-    const s = dir === 'long' ? 1 : -1;
-    const text = `${label(pair)} ${dir.toUpperCase()} ±${fmt(distance, pr!.price)}, expiry ${win(pr!.window_min)}.\n`
-      + `At today's price that's target ≈ ${fmt(pr!.price + s * distance, pr!.price)}, stop ≈ ${fmt(pr!.price - s * distance, pr!.price)}.\n\n`
-      + 'Entry is the market price at the moment you tap Lock.';
-    const kb = new InlineKeyboard().text('🔒 Lock', `l:${pair}:${dir}:${distance}`).text('Cancel', 'cancel');
-    return ctx.callbackQuery ? ctx.editMessageText(text, { reply_markup: kb }) : ctx.reply(text, { reply_markup: kb });
-  }
-
-  bot.callbackQuery(/^x:(\w+):(long|short):([\d.e-]+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    await confirmStep(ctx, getTrader(ctx).id, ctx.match[1], ctx.match[2] as Direction, Number(ctx.match[3]));
-  });
-
-  bot.callbackQuery(/^l:(\w+):(long|short):([\d.e-]+)$/, async (ctx) => {
+  bot.callbackQuery(/^k:(\w+):(intraday|swing):(long|short)$/, async (ctx) => {
     const t = getTrader(ctx);
-    try {
-      const c = await lockCall(db, { traderId: t.id, pair: ctx.match[1], direction: ctx.match[2] as Direction, distance: Number(ctx.match[3]) });
-      await ctx.answerCallbackQuery({ text: 'Locked' });
-      const first = (db.prepare('SELECT COUNT(*) AS n FROM calls WHERE trader_id = ?').get(t.id) as { n: number }).n === 1;
-      await ctx.editMessageText(`🔒 Locked at ${new Date(c.locked_at).toISOString().slice(11, 19)} UTC\n${describeCall(c)}\n`
-        + `Target ${fmt(c.target, c.entry)} · Stop ${fmt(c.stop, c.entry)}`
-        + (first ? '\n\n🎉 Your first call! I\'ll message you when it resolves.' : ''));
-    } catch (e) {
-      await ctx.answerCallbackQuery();
-      if (e instanceof CallRejected) return ctx.editMessageText(`🚫 ${e.message}`);
-      throw e;
-    }
+    if (!t.onboarded_at) { await ctx.answerCallbackQuery(); return startOnboarding(ctx, t); }
+    await ctx.answerCallbackQuery({ text: 'Locking…' });
+    await lock(ctx, t, ctx.match[1], ctx.match[2] as BoardId, ctx.match[3] as Direction);
   });
 
   bot.callbackQuery('cancel', async (ctx) => { await ctx.answerCallbackQuery(); await ctx.editMessageText('Cancelled.'); });
 
   bot.command('mycalls', async (ctx) => { const t = await requireOnboarded(ctx); if (t) await showMyCalls(ctx, t); });
   bot.command('stats', async (ctx) => { const t = await requireOnboarded(ctx); if (t) await showStats(ctx, t); });
-  bot.command('leaderboard', showLeaderboard);
-  bot.command('pairs', showPairs);
+  bot.command('leaderboard', (ctx) => {
+    const a = ctx.match.trim().toLowerCase();
+    return showLeaderboard(ctx, a.startsWith('i') || a === '2h' ? 'intraday' : a.startsWith('s') || a === '8h' ? 'swing' : undefined);
+  });
+  bot.command(['board', 'pairs'], showBoard);
 
   bot.callbackQuery(/^m:(\w+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const v = ctx.match[1];
-    if (v === 'pairs') return showPairs(ctx);
+    if (v === 'board') return showBoard(ctx);
     if (v === 'leaderboard') return showLeaderboard(ctx);
     if (v === 'rules') return ctx.reply(rulesText(), HTML);
     const t = await requireOnboarded(ctx);
@@ -382,11 +370,12 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
 
   // Free text: a pending name, otherwise a nudge.
   bot.on('message:text', async (ctx) => {
-    const id = String(ctx.from.id);
-    if (awaitingName.has(id)) return setName(ctx, ctx.message.text);
+    if (awaitingName.has(String(ctx.from.id))) return setName(ctx, ctx.message.text);
     if (ctx.message.text.startsWith('/')) return ctx.reply('Unknown command.\n\n' + helpText, HTML);
     const t = getTrader(ctx);
     if (!t.onboarded_at) return startOnboarding(ctx, t);
+    const pair = pairByLabel(ctx.message.text.trim().replace(/^\$/, ''));
+    if (pair && sessionOpen(Date.now())) return showDirection(ctx, pair.symbol);   // typing "NVDA" opens its buttons
     await ctx.reply('Tap a button or use /help.', { reply_markup: menu() });
   });
 
@@ -395,26 +384,26 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   return {
     bot,
     commands: [
-      { command: 'call', description: 'Make a call: pair, direction, distance' },
+      { command: 'call', description: 'Call a stock: long or short, 2h or 8h' },
       { command: 'mycalls', description: 'Your recent calls' },
-      { command: 'stats', description: 'Your hit rate and rank' },
-      { command: 'leaderboard', description: 'Top traders' },
-      { command: 'pairs', description: 'Pairs, windows and distance bands' },
-      { command: 'rules', description: 'How calls are scored' },
+      { command: 'stats', description: 'Your tier, points and progress' },
+      { command: 'leaderboard', description: 'Top traders on each board' },
+      { command: 'board', description: 'Stocks, bands and market hours' },
+      { command: 'rules', description: 'How scoring works' },
       { command: 'name', description: 'Change your leaderboard name' },
       { command: 'help', description: 'All commands' },
     ],
     async notifyResolved(c: CallRow) {
       const tg = (db.prepare('SELECT tg_id FROM traders WHERE id = ?').get(c.trader_id) as { tg_id: string | null })?.tg_id;
       if (!tg) return;
-      const s = allStats(db).get(c.trader_id);
-      const tail = s ? `\nYou: ${s.wins}W ${s.losses}L ${s.washes}wash · ${s.qualified ? `rank score ${(s.rankScore * 100).toFixed(1)}`
-        : `${RULES.minDecided - s.wins - s.losses} more to qualify`}` : '';
-      await bot.api.sendMessage(tg, describeCall(c) + tail, { reply_markup: new InlineKeyboard().text('📈 Call again', 'm:call') }).catch(() => {});
+      const s = boardStats(db, c.board, Date.now()).get(c.trader_id)!;
+      const text = `${describeCall(c)}\n${BOARDS[c.board].title}: ${statusLine(s)} · ${s.wins}W ${s.losses}L · ${s.points.toFixed(2)} pts`
+        + `\n🔓 Revealed: salt <code>${c.salt}</code> (hash <code>${c.commit_hash.slice(0, 12)}</code>)`;
+      await bot.api.sendMessage(tg, text, { ...HTML, reply_markup: new InlineKeyboard().text('📈 Call again', 'm:call') }).catch(() => {});
     },
     async notifySignal(s: Signal, t: AgentTrade) {
       if (!adminId) return;
-      const head = `📡 Consensus: ${label(s.pair)} ${s.direction.toUpperCase()} · ${s.n_traders} traders · ${pct(s.agreement)} agreement`;
+      const head = `📡 Consensus: ${label(s.pair)} ${s.direction.toUpperCase()} · ${BOARDS[s.board].title} · ${s.n_traders} traders · ${pct(s.agreement)} of weight`;
       const kb = t.status === 'proposed' && t.mode === 'confirm'
         ? new InlineKeyboard().text('✅ Confirm (paper)', `ok:${t.id}`).text('✖️ Reject', `no:${t.id}`) : undefined;
       await bot.api.sendMessage(adminId, `${head}\n${describeTrade(t)}\n\n${t.reason ?? ''}`, { reply_markup: kb }).catch((e) => console.error(e));

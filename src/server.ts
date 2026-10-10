@@ -4,6 +4,8 @@ import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { openDb, getSetting, type DB } from './db.js';
 import { leaderboard } from './scoring.js';
+import { BOARDS, BOARD_IDS } from './config.js';
+import { sessionLine } from './sessions.js';
 
 const dbs = new Map<string, DB>();
 const dbFor = (name: string) => {
@@ -14,16 +16,21 @@ const dbFor = (name: string) => {
 
 function state(which: string) {
   const db = dbFor(which);
-  const calls = db.prepare(`SELECT c.*, t.name FROM calls c JOIN traders t ON t.id = c.trader_id ORDER BY c.locked_at DESC LIMIT 40`).all();
+  // Open calls are sealed: only trader, board, lock time and the commit hash are public until they resolve.
+  const calls = (db.prepare(`SELECT c.*, t.name FROM calls c JOIN traders t ON t.id = c.trader_id ORDER BY c.locked_at DESC LIMIT 40`).all() as Record<string, unknown>[])
+    .map((c) => c.status === 'open'
+      ? { id: c.id, name: c.name, board: c.board, locked_at: c.locked_at, expires_at: c.expires_at, status: 'open', commit_hash: c.commit_hash }
+      : c);
   const signals = db.prepare('SELECT * FROM signals ORDER BY created_at DESC LIMIT 20').all();
   const trades = db.prepare('SELECT * FROM agent_trades ORDER BY created_at DESC LIMIT 20').all();
-  const profiles = db.prepare('SELECT * FROM pair_profiles ORDER BY pair').all();
-  const paper = db.prepare('SELECT ts, kind, ok FROM paper_log ORDER BY ts DESC LIMIT 20').all();
+  const bands = db.prepare('SELECT b.*, q.price FROM bands b LEFT JOIN quotes q ON q.pair = b.pair ORDER BY b.pair, b.board').all();
   const counts = db.prepare(`SELECT COUNT(*) AS calls, SUM(status='win') AS wins, SUM(status='loss') AS losses, SUM(status='wash') AS washes,
     SUM(status='open') AS open FROM calls`).get();
+  const asOf = which === 'sim' ? Number((db.prepare('SELECT MAX(resolved_at) AS t FROM calls').get() as { t: number | null }).t ?? Date.now()) : Date.now();
   return {
-    which, simulated: which === 'sim', kill: getSetting(db, 'kill') === '1', counts,
-    leaderboard: leaderboard(db).slice(0, 25), calls, signals, trades, profiles, paper,
+    which, simulated: which === 'sim', kill: getSetting(db, 'kill') === '1', counts, session: sessionLine(Date.now()),
+    boards: Object.fromEntries(BOARD_IDS.map((b) => [b, { title: BOARDS[b].title, leaderboard: leaderboard(db, b, asOf).slice(0, 20) }])),
+    calls, signals, trades, bands,
     backtest: existsSync('results/backtest.json') ? JSON.parse(readFileSync('results/backtest.json', 'utf8')) : null,
   };
 }

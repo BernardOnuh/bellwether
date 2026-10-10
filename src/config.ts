@@ -1,64 +1,93 @@
 import 'dotenv/config';
 
 export type Direction = 'long' | 'short';
+export type BoardId = 'intraday' | 'swing';
 
-export interface PairDef {
-  symbol: string;   // Bitget USDT-FUTURES symbol
-  label: string;    // what traders type / see
-  kind: 'crypto' | 'stock';
-}
+export interface PairDef { symbol: string; label: string; name: string }
 
-// USDT perpetuals: liquid, tight spreads, and shorts are possible. Stocks are Bitget's RWA perps.
+// Bitget USDT-margined stock perpetuals (RWA). Chosen for liquidity and tight spreads.
 export const PAIRS: PairDef[] = [
-  { symbol: 'BTCUSDT', label: 'BTC', kind: 'crypto' },
-  { symbol: 'ETHUSDT', label: 'ETH', kind: 'crypto' },
-  { symbol: 'SOLUSDT', label: 'SOL', kind: 'crypto' },
-  { symbol: 'XRPUSDT', label: 'XRP', kind: 'crypto' },
-  { symbol: 'DOGEUSDT', label: 'DOGE', kind: 'crypto' },
-  { symbol: 'NVDAUSDT', label: 'NVDA', kind: 'stock' },
-  { symbol: 'TSLAUSDT', label: 'TSLA', kind: 'stock' },
-  { symbol: 'MSTRUSDT', label: 'MSTR', kind: 'stock' },
+  { symbol: 'NVDAUSDT', label: 'NVDA', name: 'NVIDIA' },
+  { symbol: 'TSLAUSDT', label: 'TSLA', name: 'Tesla' },
+  { symbol: 'AAPLUSDT', label: 'AAPL', name: 'Apple' },
+  { symbol: 'MSFTUSDT', label: 'MSFT', name: 'Microsoft' },
+  { symbol: 'AMZNUSDT', label: 'AMZN', name: 'Amazon' },
+  { symbol: 'GOOGLUSDT', label: 'GOOGL', name: 'Alphabet' },
+  { symbol: 'METAUSDT', label: 'META', name: 'Meta' },
+  { symbol: 'AMDUSDT', label: 'AMD', name: 'AMD' },
+  { symbol: 'MUUSDT', label: 'MU', name: 'Micron' },
+  { symbol: 'AVGOUSDT', label: 'AVGO', name: 'Broadcom' },
+  { symbol: 'PLTRUSDT', label: 'PLTR', name: 'Palantir' },
+  { symbol: 'MSTRUSDT', label: 'MSTR', name: 'Strategy' },
+  { symbol: 'COINUSDT', label: 'COIN', name: 'Coinbase' },
+  { symbol: 'QQQUSDT', label: 'QQQ', name: 'Nasdaq-100 ETF' },
+  { symbol: 'SPYUSDT', label: 'SPY', name: 'S&P 500 ETF' },
 ];
 
 export const CATEGORY = 'USDT-FUTURES';
 
 const num = (k: string, d: number) => (process.env[k] ? Number(process.env[k]) : d);
 
+/** Two boards, scored separately. Traders pick pair + direction; the board fixes band and horizon. */
+export const BOARDS: Record<BoardId, { id: BoardId; title: string; horizonMin: number; dailyCap: number; minGapMin: number }> = {
+  intraday: { id: 'intraday', title: 'Intraday (2h)', horizonMin: 120, dailyCap: 10, minGapMin: 10 },
+  swing: { id: 'swing', title: 'Swing (8h)', horizonMin: 480, dailyCap: 3, minGapMin: 60 },
+};
+export const BOARD_IDS = Object.keys(BOARDS) as BoardId[];
+
+/**
+ * US equity session for calls (America/New_York). Bitget's stock perps trade around the clock,
+ * but outside pre-market + regular hours they are thin, and weekends are mostly empty minutes.
+ * SESSION_MODE=always disables the calendar (for demos only; it is shown in the bot and dashboard).
+ */
+export const SESSION = {
+  mode: (process.env.SESSION_MODE ?? 'us') as 'us' | 'always',
+  openMin: 4 * 60,          // 04:00 ET, pre-market
+  closeMin: 16 * 60,        // 16:00 ET, regular close; last moment to lock a call
+  weekendCutoffMin: 20 * 60, // Friday 20:00 ET: no call may still be running after this
+};
+
+/** House bands: one symmetric 1:1 band per pair and board, recalibrated daily, frozen into each call at lock. */
+export const BANDS = {
+  volWindowDays: 30,
+  strideMin: 30,           // sample a window start every 30 min inside the session
+  minSpreadMultiple: 8,    // list a pair on a board only if band >= 8x its spread
+  maxAgeMs: 26 * 3600_000,
+};
+
 export const RULES = {
-  // Volatility classifier: trailing 24h realized vol (daily, from 5m closes) at or above this => volatile
-  volThreshold: num('VOL_THRESHOLD', 0.015),
-  volatileWindowMin: 30,
-  calmWindowMin: 8 * 60,
-  // Allowed distance band as multiples of the pair's typical range for its window
-  bandLo: 0.5,
-  bandHi: 1.5,
-  // Minimum distance = costMultiple x round-trip cost (2x taker fee + spread)
-  costMultiple: 3,
   takerFee: 0.0006,
-  // Spam / hedging limits
-  dailyCap: num('DAILY_CAP', 10),
-  // Entry lock
   staleTickerMs: 5_000,
-  profileMaxAgeMs: 2 * 60 * 60 * 1000,
-  // Market treated as closed when this share of the last 30 1m candles had zero volume
-  closedZeroVolShare: 0.8,
-  // Scoring
-  priorWins: 5,
-  priorTotal: 10,
-  minDecided: num('MIN_DECIDED', 10),
-  // A wash rate this far above the crowd's own wash rate starts to cost rank (closes the huge-target loophole
-  // without punishing everyone for washes that 1:1 brackets produce by design).
-  washSlack: 0.1,
-  washPenalty: 1,        // rank multiplier slope above (crowd wash rate + washSlack)
+};
+
+/** Scoring, modeled on a confidence-gated hit rate with tiers. */
+export const SCORING = {
+  qualifyMinDecisive: num('QUALIFY_MIN_DECISIVE', 8),
+  qualifyZ: 1.2816,         // one-sided ~90%
+  qualifyLbFloor: 0.5,      // Wilson lower bound must clear a coin flip
+  tierPriorK: 12,           // Beta(6,6) shrinkage toward 50% before tiering
+  tiers: [
+    { name: 'WOLF', min: 0.7, mult: 2 },
+    { name: 'SHARP', min: 0.6, mult: 1.2 },
+    { name: 'BASE', min: 0.55, mult: 1 },
+  ],
+  reputationDays: 60,
+  reputationMaxDecisive: 100,
+  pointsDecayDays: 7,       // each win's points fade linearly to zero over 7 days
+  winCap: 20,               // at most 20 wins count toward points
+  warmupDays: num('WARMUP_DAYS', 8), // wins in the first days build the record but earn no points
+  elimMinDecisive: 40,
+  elimUbCeil: 0.45,         // eliminated when lifetime Wilson upper bound < 45%
+  copyLagMin: 15,           // same pair+direction+board within 15 min of an open call = landed second
+  copyHabitualShare: 0.5,
+  copyMinCopies: 8,
+  copyLeaderMinDecisive: 10,
 };
 
 export const CONSENSUS = {
-  minTraders: 3,          // independent qualified traders on the same side
-  minAgreement: 0.7,      // share of weight on the winning side
-  windowFrac: 1 / 3,      // look-back = window x this (10 min for 30m pairs, 160 min for 8h)
-  corrMinOverlap: 5,      // co-calls needed before judging two traders as clones
-  corrMaxAgree: 0.9,      // above this agreement they count as one voice
-  corrNearMs: 5 * 60_000,
+  minTraders: 3,
+  minAgreement: 0.7,
+  lookbackFrac: 0.25,       // look back a quarter of the horizon (30 min intraday, 2h swing)
 };
 
 export const AGENT = {
@@ -66,9 +95,11 @@ export const AGENT = {
   riskUsdt: num('AGENT_RISK_USDT', 10),
   maxOpen: 3,
   dailyLossLimitR: 3,
+  maxCostR: 0.25,           // skip trades where fees + spread exceed a quarter of the band
   confirmTimeoutMs: 3 * 60_000,
 };
 
 export const pairByLabel = (s: string) =>
   PAIRS.find((p) => p.label.toLowerCase() === s.toLowerCase() || p.symbol.toLowerCase() === s.toLowerCase());
 export const pairBySymbol = (s: string) => PAIRS.find((p) => p.symbol === s);
+export const label = (sym: string) => pairBySymbol(sym)?.label ?? sym.replace(/USDT$/, '');
