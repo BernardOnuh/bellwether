@@ -102,6 +102,10 @@ export function openDb(file = process.env.DB_FILE ?? 'data/live.db'): DB {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  // Migrations for databases created before these columns existed.
+  const cols = (db.prepare('PRAGMA table_info(traders)').all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes('onboarded_at')) db.exec('ALTER TABLE traders ADD COLUMN onboarded_at INTEGER');
+  if (!cols.includes('username')) db.exec('ALTER TABLE traders ADD COLUMN username TEXT');
   return db;
 }
 

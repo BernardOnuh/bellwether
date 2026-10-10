@@ -50,13 +50,11 @@ tick();
 
 startDashboard(Number(process.env.DASHBOARD_PORT ?? 8787));
 if (tg) {
-  await tg.bot.api.setMyCommands([
-    { command: 'call', description: 'Make a call: pair, direction, distance' },
-    { command: 'mycalls', description: 'Your recent calls' },
-    { command: 'stats', description: 'Your hit rate and rank' },
-    { command: 'leaderboard', description: 'Top traders' },
-    { command: 'pairs', description: 'Pairs, windows and distance bands' },
-    { command: 'rules', description: 'How calls are scored' },
-  ]);
+  await tg.bot.api.setMyCommands(tg.commands);
+  // Shown to new users before they tap Start, and on the bot's profile.
+  await tg.bot.api.setMyDescription('Call where crypto and US stocks go next. Pick a pair, a direction and a distance; '
+    + 'every call is scored against live Bitget prices. Top-ranked traders feed an AI agent that paper-trades their consensus. '
+    + 'Free to play, no deposits, not financial advice.');
+  await tg.bot.api.setMyShortDescription('Make market calls, get scored on real prices, climb the leaderboard.');
   tg.bot.start({ onStart: (me) => console.log(`Bot @${me.username} running`) });
 }
