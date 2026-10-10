@@ -33,7 +33,7 @@ const buttons = (p: any) => (p.reply_markup?.inline_keyboard ?? []).flat().map((
 
 test('onboarding: name, 3-step tutorial, then the menu', async () => {
   await text('/start');
-  assert.match(last().text, /Welcome to the Crowd-Signal stock desk/);
+  assert.match(last().text, /Welcome to Bellwether/);
   assert.deepEqual(buttons(last()), ['ob:keep', 'ob:rename']);
   await text('/call');                       // not onboarded -> intro first
   assert.match(last().text, /Welcome/);

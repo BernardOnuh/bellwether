@@ -1,4 +1,4 @@
-# Crowd-Signal Trading Agent
+# Bellwether
 
 Traders make simple directional calls in Telegram. The system scores every call against real Bitget prices, ranks traders on a shrunk hit rate that can't be gamed, and looks for moments when the best-ranked traders agree. When they do, an agent proposes a trade, checks it against a risk gate, and sends it to Bitget's **demo** environment after a human taps Confirm.
 

@@ -61,9 +61,9 @@ if (tg) {
   }
   if (!process.env.ADMIN_CHAT_ID) console.warn('ADMIN_CHAT_ID not set: send /myid to the bot, put the number in .env, restart. Until then nobody can confirm agent trades.');
   await tg.bot.api.setMyCommands(tg.commands);
-  await tg.bot.api.setMyDescription('Call where US stocks go next. Pick a stock, tap long or short, and get graded against live Bitget prices. '
-    + 'Earn a tier (BASE, SHARP, WOLF) on the leaderboard; the top callers steer an AI agent that paper-trades their consensus. '
+  await tg.bot.api.setMyDescription('Bellwether: call where US stocks go next. Pick a stock, tap long or short, and get graded against live Bitget prices. '
+    + 'Earn a tier (BASE, SHARP, WOLF) on the leaderboard; the top callers lead an AI agent that paper-trades their consensus. '
     + 'Free, no deposits, not financial advice.');
-  await tg.bot.api.setMyShortDescription('Call US stocks, get graded on live Bitget prices, climb the tiers.');
+  await tg.bot.api.setMyShortDescription('Call US stocks. Earn your tier. Lead the agent.');
   tg.bot.start({ onStart: (me) => console.log(`Bot @${me.username} running · ${PAIRS.length} stocks`) });
 }
