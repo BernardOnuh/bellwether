@@ -74,6 +74,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     let name = base;
     for (let i = 2; validateName(db, name); i++) name = `${base}${i}`;
     db.prepare('INSERT INTO traders (tg_id, name, username, created_at) VALUES (?, ?, ?, ?)').run(String(u.id), name, u.username ?? null, Date.now());
+    console.log(`[bot] new trader ${name} (telegram id ${u.id})${adminId ? '' : ' — set ADMIN_CHAT_ID to this id to make it the admin'}`);
     return findTrader(ctx)!;
   }
 
@@ -212,6 +213,8 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     if (!t.onboarded_at) await tutorialStep(ctx, 0);
   }
 
+  bot.command('myid', (ctx) => ctx.reply(`Your Telegram id is <code>${ctx.from!.id}</code>.`
+    + (adminId ? (isAdmin(ctx) ? ' You are the admin.' : '') : '\nPut it in ADMIN_CHAT_ID in .env and restart to become the admin.'), HTML));
   bot.command('help', (ctx) => ctx.reply(helpText, { ...HTML, reply_markup: menu() }));
   bot.command('rules', (ctx) => ctx.reply(rulesText(), HTML));
 

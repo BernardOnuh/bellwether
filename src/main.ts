@@ -53,6 +53,13 @@ tick();
 
 startDashboard(Number(process.env.DASHBOARD_PORT ?? 8787));
 if (tg) {
+  try {
+    await tg.bot.api.getMe();
+  } catch (e) {
+    console.error(`Telegram rejected TELEGRAM_BOT_TOKEN (${(e as Error).message}). Copy the token from @BotFather again into .env.`);
+    process.exit(1);
+  }
+  if (!process.env.ADMIN_CHAT_ID) console.warn('ADMIN_CHAT_ID not set: send /myid to the bot, put the number in .env, restart. Until then nobody can confirm agent trades.');
   await tg.bot.api.setMyCommands(tg.commands);
   await tg.bot.api.setMyDescription('Call where US stocks go next. Pick a stock, tap long or short, and get graded against live Bitget prices. '
     + 'Earn a tier (BASE, SHARP, WOLF) on the leaderboard; the top callers steer an AI agent that paper-trades their consensus. '
