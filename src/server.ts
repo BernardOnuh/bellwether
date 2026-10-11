@@ -7,7 +7,7 @@ import { leaderboard } from './scoring.js';
 import { BOARDS, BOARD_IDS, PAIRS, REWARDS } from './config.js';
 import { rewardBoard, ensureRewardsTable } from './rewards.js';
 import { sessionLine } from './sessions.js';
-import { handleMiniApp } from './miniapp.js';
+import { handleMiniApp, league } from './miniapp.js';
 import { handleAgentApi } from './agentapi.js';
 
 const dbs = new Map<string, DB>();
@@ -39,6 +39,7 @@ function state(which: string) {
     pairs: PAIRS,
     boards: Object.fromEntries(BOARD_IDS.map((b) => [b, { title: BOARDS[b].title, leaderboard: leaderboard(db, b, asOf).slice(0, 20) }])),
     rewards: { rule: REWARDS, lastDay, lastDayRows, board: rewardBoard(db, asOf + 86_400_000).slice(0, 25) },
+    league: league(db, undefined, asOf + 86_400_000).slice(0, 30),
     calls, signals, trades, bands,
     backtest: existsSync('results/backtest.json') ? JSON.parse(readFileSync('results/backtest.json', 'utf8')) : null,
   };

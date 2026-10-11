@@ -4,5 +4,6 @@
 
 SESSION_MODE=always: market-hours calendar is OFF (demo mode).
 Calibrating house bands (first run fetches 30 days of 5m candles per stock)...
-Dashboard on http://localhost:8787  (simulated: /?db=sim)
+Dashboard on http://localhost:8787  (simulated: /?db=sim) · Mini App at /app
+Mini App: https://created-asset-touch-her.trycloudflare.com/app (chat menu button set)
 Bot @BellWetherCallsbot running · 30 stocks

@@ -6,7 +6,7 @@ import { BOARDS, BOARD_IDS, PAIRS, REWARDS, SCORING, boardsFor, type BoardId, ty
 import { loadBand, loadQuote } from './bands.js';
 import { CallRejected, lockCall, type CallRow } from './calls.js';
 import type { DB } from './db.js';
-import { rewardBoard, todayProgress } from './rewards.js';
+import { rewardBoard, todayProgress, warmupStatus } from './rewards.js';
 import { boardStats } from './scoring.js';
 import { crossesWeekend, sessionLine, sessionOpen } from './sessions.js';
 
@@ -87,8 +87,10 @@ export function me(db: DB, traderId: number) {
   const now = Date.now();
   const p = todayProgress(db, traderId, now);
   const standing = rewardBoard(db, now).find((r) => r.trader_id === traderId);
+  const lg = league(db, traderId, now);
+  const mine = lg.find((r) => r.me);
   return {
-    id: t.id, name: t.name, onboarded: !!t.onboarded_at,
+    id: t.id, name: t.name, onboarded: !!t.onboarded_at, rank: mine?.rank ?? null, players: lg.length, tier: mine?.tier ?? null,
     club: { ...p, warmupDays: REWARDS.warmupDays, warmupActiveDays: REWARDS.warmupActiveDays, minRate: REWARDS.minRate, rolling: REWARDS.rollingDecisive, minCalls: REWARDS.minCallsToday, pool: REWARDS.dailyPool,
       points7d: standing?.points7d ?? 0, pointsAll: standing?.pointsAll ?? 0, streak: standing?.streak ?? 0 },
     boards: BOARD_IDS.map((b) => {
@@ -97,6 +99,31 @@ export function me(db: DB, traderId: number) {
         lb: s.lb, qualified: s.qualified, tier: s.tier, status: s.status, need: Math.max(0, SCORING.qualifyMinDecisive - s.decisive), copier: s.copier };
     }),
   };
+}
+
+const TIER_RANK: Record<string, number> = { WOLF: 3, SHARP: 2, BASE: 1 };
+
+/** Best tier across boards for each trader (null = not qualified anywhere yet). */
+export function bestTiers(db: DB, now = Date.now()): Map<number, string | null> {
+  const best = new Map<number, string | null>();
+  for (const b of BOARD_IDS) for (const s of boardStats(db, b, now).values()) {
+    const cur = best.get(s.trader_id) ?? null;
+    if (s.tier && (!cur || TIER_RANK[s.tier] > TIER_RANK[cur])) best.set(s.trader_id, s.tier);
+    else if (!best.has(s.trader_id)) best.set(s.trader_id, null);
+  }
+  return best;
+}
+
+/** The league table: everyone who has called, ranked by points this week, with tier, streak, warmup and agent flag. */
+export function league(db: DB, meId?: number, now = Date.now()) {
+  const tiers = bestTiers(db, now);
+  return rewardBoard(db, now).map((r, i) => {
+    const w = warmupStatus(db, r.trader_id, now);
+    return {
+      rank: i + 1, id: r.trader_id, name: r.name, agent: r.kind === 'agent', points7d: r.points7d, pointsAll: r.pointsAll,
+      streak: r.streak, rolling: r.rolling, tier: tiers.get(r.trader_id) ?? null, warmup: !w.done, me: r.trader_id === meId,
+    };
+  });
 }
 
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -123,8 +150,7 @@ export async function handleMiniApp(db: DB, req: IncomingMessage, res: ServerRes
     const route = `${req.method} ${path}`;
     if (route === 'GET /api/app/state') {
       const calls = db.prepare('SELECT * FROM calls WHERE trader_id = ? ORDER BY locked_at DESC LIMIT 30').all(t.id) as unknown as CallRow[];
-      const club = rewardBoard(db).slice(0, 20).map((r, i) => ({ rank: i + 1, name: r.name, points7d: r.points7d, streak: r.streak, rolling: r.rolling, me: r.trader_id === t.id }));
-      return json(res, 200, { me: me(db, t.id), market: market(db), calls: calls.map(publicCall), club }), true;
+      return json(res, 200, { me: me(db, t.id), market: market(db), calls: calls.map(publicCall), club: league(db, t.id) }), true;
     }
     if (route === 'POST /api/app/onboard') {
       db.prepare('UPDATE traders SET onboarded_at = COALESCE(onboarded_at, ?) WHERE id = ?').run(Date.now(), t.id);

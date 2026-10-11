@@ -122,13 +122,13 @@ export function settleDue(db: DB, now = Date.now(), mode = SESSION.mode): DailyR
   return out;
 }
 
-export interface RewardStanding { trader_id: number; name: string; points7d: number; pointsAll: number; streak: number; qualifiedDays: number; rolling: string }
+export interface RewardStanding { trader_id: number; name: string; kind: string; points7d: number; pointsAll: number; streak: number; qualifiedDays: number; rolling: string }
 
 /** Reward leaderboard: points over the last 7 settled days and all-time, current streak. */
 export function rewardBoard(db: DB, now = Date.now()): RewardStanding[] {
   ensureRewardsTable(db);
   const since = etDay(now - 7 * 86_400_000);
-  const rows = db.prepare(`SELECT t.id AS trader_id, t.name,
+  const rows = db.prepare(`SELECT t.id AS trader_id, t.name, t.kind,
       ROUND(COALESCE(SUM(CASE WHEN r.day > ? THEN r.points END), 0), 2) AS points7d,
       ROUND(COALESCE(SUM(r.points), 0), 2) AS pointsAll,
       COALESCE(SUM(r.eligible), 0) AS qualifiedDays,

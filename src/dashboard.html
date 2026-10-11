@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bellwether</title>
 <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
 <style>
   /* Bellwether brand: light blue on white. Chart series validated for CVD separation on these surfaces. */
   :root {
@@ -41,18 +43,24 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--surface-0); color: var(--text-primary);
-    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    font: 600 14px/1.45 Nunito, ui-rounded, "SF Pro Rounded", system-ui, sans-serif; }
   main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 48px; }
   header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 12px; }
   h1 { font-size: 24px; margin: 0; letter-spacing: -0.02em; font-weight: 750; }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand img { width: 44px; height: 44px; display: block; }
-  .hero { background: linear-gradient(135deg, var(--surface-1) 0%, var(--brand-soft) 100%); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; margin-bottom: 12px; }
+  .hero { background: linear-gradient(150deg, #8fd0f8 0%, #2b8fdc 100%); color: #fff; border: 0; border-radius: 26px; padding: 20px 22px; margin-bottom: 14px; box-shadow: 0 10px 30px rgb(26 111 184 / .18); }
+  .hero h1, .hero .tagline { color: #fff; }
+  .hero .brand img { background: rgb(255 255 255 / .2); border-radius: 12px; padding: 4px; }
+  .hero .seg { border-color: rgb(255 255 255 / .4); }
+  .hero .seg button { background: rgb(255 255 255 / .15); color: #fff; }
+  .hero .seg button[aria-pressed="true"] { background: #fff; color: var(--brand-strong); }
   .tagline { color: var(--brand-strong); font-weight: 600; font-size: 14px; }
   .tile .v { color: var(--text-primary); }
-  .tile { border-left: 3px solid var(--brand-soft); padding-left: 10px; }
+  .tile { background: var(--brand-soft); border-radius: 16px; padding: 10px 12px; }
+  .tile .k { font-weight: 700; }
   .card h2 { color: var(--text-primary); }
-  h2 { font-size: 15px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 0 0 4px; font-weight: 900; letter-spacing: -0.01em; }
   .sub { color: var(--text-secondary); font-size: 13px; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .seg button { border: 0; background: var(--surface-1); color: var(--text-secondary); padding: 6px 12px; font: inherit; cursor: pointer; }
@@ -60,12 +68,12 @@
   .session { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
   .banner { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; font-size: 13px; }
   .grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); align-items: start; }
-  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+  .card { background: var(--surface-1); border: 0; border-radius: 22px; padding: 18px; min-width: 0; box-shadow: 0 4px 16px rgb(26 111 184 / .08); }
   .span-12 { grid-column: span 12; } .span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; }
   @media (max-width: 900px) { .span-7, .span-5 { grid-column: span 12; } }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
   .tile .k { color: var(--text-secondary); font-size: 12px; }
-  .tile .v { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .v { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
   th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
@@ -85,6 +93,25 @@
     padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .12); display: none; min-width: 180px; z-index: 2; }
   .tip .row { display: flex; justify-content: space-between; gap: 12px; }
   details summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; margin-top: 8px; }
+  .podium { display: grid; grid-template-columns: 1fr 1.12fr 1fr; gap: 10px; align-items: end; margin: 12px 0; }
+  .pod { background: var(--surface-0); border-radius: 18px; padding: 12px 8px; text-align: center; }
+  .pod.first { padding: 18px 8px; background: linear-gradient(180deg, #fff6d6, var(--surface-0) 75%); }
+  :root[data-theme="dark"] .pod.first { background: linear-gradient(180deg, #3a3110, var(--surface-0) 75%); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pod.first { background: linear-gradient(180deg, #3a3110, var(--surface-0) 75%); } }
+  .pod .medal { font-size: 26px; } .pod .nm { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pod .pts { font-size: 20px; font-weight: 900; color: var(--brand-strong); }
+  .av { width: 40px; height: 40px; border-radius: 14px; display: inline-grid; place-items: center; font-weight: 900; font-size: 14px; margin: 6px auto; }
+  .lrow { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-bottom: 1px solid var(--grid); }
+  .lrow .rk { width: 22px; text-align: center; font-weight: 900; color: var(--text-muted); }
+  .lrow .av { margin: 0; width: 34px; height: 34px; font-size: 12px; border-radius: 11px; }
+  .lrow .nm { flex: 1; min-width: 0; font-weight: 800; } .lrow .nm div { font-size: 12px; color: var(--text-muted); font-weight: 700; }
+  .lrow .pt { text-align: right; font-weight: 900; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .tier { display: inline-block; font-size: 11px; font-weight: 900; padding: 2px 8px; border-radius: 999px; }
+  .t-WOLF { background: linear-gradient(90deg, #5a5fe0, #2b8fdc); color: #fff; } .t-SHARP { background: var(--brand); color: var(--on-brand); }
+  .t-BASE { background: var(--brand-soft); color: var(--brand-strong); } .t-rookie { background: var(--grid); color: var(--text-secondary); }
+  .t-warmup { background: #e2f7ec; color: #13a05a; } .t-out { background: #fde9e7; color: #c0362c; }
+  .res { font-size: 11px; font-weight: 900; padding: 2px 8px; border-radius: 8px; }
+  .r-win { background: #e2f7ec; color: #13a05a; } .r-loss { background: #fde9e7; color: #c0362c; } .r-wash { background: var(--grid); color: var(--text-secondary); } .r-open { background: var(--brand-soft); color: var(--brand-strong); }
   .group-h { font-size: 12px; color: var(--text-secondary); margin: 12px 0 0; font-weight: 600; }
 </style>
 </head>
@@ -117,9 +144,9 @@
     </section>
 
     <section class="card span-7">
-      <h2>🏆 65% club</h2>
+      <h2>🏆 This week's League · 65% club</h2>
       <div class="sub" id="club-sub"></div>
-      <div class="scroll"><table id="club"></table></div>
+      <div id="club"></div>
     </section>
     <section class="card span-5">
       <h2>Tiers by board</h2>
@@ -160,6 +187,13 @@ const time = (t) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New
 const px = (x, ref = x) => { const d = Math.max(0, 4 - Math.floor(Math.log10(Math.abs(ref || 1)))); return Number(x).toFixed(Math.min(d, 8)); };
 const signed = (x, d = 2) => x == null ? '–' : `<span class="${x >= 0 ? 'pos' : 'neg'}">${x >= 0 ? '+' : ''}${x.toFixed(d)}R</span>`;
 const BADGE = { WOLF: '🐺', SHARP: '🎯', BASE: '✅' };
+const TIERTXT = { WOLF: '🐺 WOLF', SHARP: '🎯 SHARP', BASE: '✅ BASE' };
+const tierChip = (tier, warmup) => tier ? `<span class="tier t-${tier}">${TIERTXT[tier]}</span>` : warmup ? '<span class="tier t-warmup">🌱 Warmup</span>' : '<span class="tier t-rookie">Rookie</span>';
+const TINTS = [['#e3f2fd', '#1a6fb8'], ['#e6ebff', '#3f5fd0'], ['#dff5f1', '#14857a'], ['#ecebff', '#5a5fe0'], ['#e3f4ff', '#2b8fdc']];
+const av = (r) => { if (r.agent) return '<div class="av" style="background:var(--brand-soft);font-size:18px">🤖</div>';
+  let h = 0; for (const ch of r.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const [bg, fg] = TINTS[h % TINTS.length];
+  const ini = r.name.replace(/^@/, '').split(/[\s_.-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  return `<div class="av" style="background:${bg};color:${fg}">${esc(ini)}</div>`; };
 const table = (el, head, rows) => {
   el.innerHTML = `<thead><tr>${head.map((h) => `<th class="${h.startsWith('#') ? 'num' : ''}">${h.replace(/^#/, '')}</th>`).join('')}</tr></thead>`
     + `<tbody>${rows.length ? rows.map((r) => `<tr>${r.map((c, i) => `<td class="${head[i].startsWith('#') ? 'num' : ''}">${c}</td>`).join('')}</tr>`).join('')
@@ -258,22 +292,27 @@ function render(s) {
   const rule = s.rewards.rule;
   $('club-sub').textContent = `Each trading day: last ${rule.rollingDecisive} wins+losses ≥ ${Math.round(rule.minRate * 100)}% and ${rule.minCallsToday}+ calls `
     + `→ share of ${rule.dailyPool.toLocaleString()} pts, split by that day's wins × tier.` + (s.rewards.lastDay ? ` Last settled: ${s.rewards.lastDay}.` : '');
-  table($('club'), ['#', 'Trader', '#Pts 7d', '#Pts all', '#Days', 'Streak', '#Last 20'],
-    s.rewards.board.map((r, i) => [i + 1, esc(r.name), r.points7d.toFixed(0), r.pointsAll.toFixed(0), r.qualifiedDays, r.streak ? `🔥${r.streak}` : '–', r.rolling]));
+  const L = s.league || [];
+  const pod = (r, place) => r ? `<div class="pod ${place === 1 ? 'first' : ''}"><div class="medal">${['🥇', '🥈', '🥉'][place - 1]}</div>${av(r)}
+      <div class="nm">${esc(r.name)}</div><div class="pts">${Math.round(r.points7d)} <span class="muted" style="font-size:11px">pts</span></div><div>${tierChip(r.tier, r.warmup)}</div></div>`
+    : `<div class="pod"><div class="medal">${['🥇', '🥈', '🥉'][place - 1]}</div><div class="nm muted">Open spot</div></div>`;
+  $('club').innerHTML = L.length ? `<div class="podium">${pod(L[1], 2)}${pod(L[0], 1)}${pod(L[2], 3)}</div>`
+    + L.slice(3, 15).map((r) => `<div class="lrow"><div class="rk">${r.rank}</div>${av(r)}<div class="nm">${esc(r.name)}<div>${tierChip(r.tier, r.warmup)} · last 20 ${r.rolling}${r.streak ? ` · 🔥${r.streak}` : ''} · ${r.pointsAll.toFixed(0)} all-time</div></div><div class="pt">${Math.round(r.points7d)}<div class="muted" style="font-size:11px">pts</div></div></div>`).join('')
+    : '<p class="muted">No players yet.</p>';
 
   $('tier-tabs').innerHTML = s.boardMeta.map((b) => `<button data-b="${b.id}" aria-pressed="${b.id === tierBoard}">${b.title} · ${b.hours}h</button>`).join('');
   $('tier-tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { tierBoard = b.dataset.b; render(last); }));
   table($('tiers'), ['#', 'Trader', 'Status', '#W', '#L', '#Hit', '#Conf.'],
     (s.boards[tierBoard]?.leaderboard ?? []).map((t, i) => [i + 1, esc(t.name),
-      t.tier ? `${BADGE[t.tier]} ${t.tier}` : t.eliminated ? '⛔ out' : t.copier ? '⚠️ copier' : `<span class="muted">${t.status}</span>`,
+      t.tier ? tierChip(t.tier) : t.eliminated ? '<span class="tier t-out">⛔ out</span>' : t.copier ? '<span class="tier t-out">⚠️ copier</span>' : tierChip(null, t.status === 'warmup'),
       t.wins, t.losses, pct(t.hitRate), pct(t.lb)]));
 
   const icon = { open: '🔒', win: '✅', loss: '❌', wash: '➖' };
   table($('calls'), ['Locked (NY)', 'Trader', 'Board', 'Call', '#Entry', 'Result'],
     s.calls.map((c) => c.status === 'open'
-      ? [time(c.locked_at), esc(c.name), title[c.board], `<span class="mono muted">sealed ${esc(c.commit_hash.slice(0, 12))}</span>`, '', '🔒 open']
+      ? [time(c.locked_at), esc(c.name), title[c.board], `<span class="mono muted">sealed ${esc(c.commit_hash.slice(0, 12))}</span>`, '', '<span class="res r-open">🔒 LIVE</span>']
       : [time(c.locked_at), esc(c.name), title[c.board], `${sym(c.pair)} ${c.direction} ±${(c.band_bps / 100).toFixed(2)}%`, px(c.entry),
-        `${icon[c.status]} ${c.status}${c.wash_reason ? ` (${c.wash_reason})` : ''}`]));
+        `<span class="res r-${c.status}">${{ win: 'PASS', loss: 'FAILED', wash: 'NO RESULT' }[c.status]}</span>`]));
 
   const band = (pair, b) => s.bands.find((x) => x.pair === pair && x.board === b);
   const grp = (g, label) => {
