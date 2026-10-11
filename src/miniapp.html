@@ -298,7 +298,7 @@ const TOUR = [
 ];
 
 function countUp(el, to, suffix = '') {
-  if (!el) return; const t0 = performance.now();
+  if (!el) return; if (q0.has('static')) { el.textContent = to + suffix; return; } const t0 = performance.now();
   const step = (t) => { const k = Math.min(1, (t - t0) / 1100); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))) + suffix; if (k < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
@@ -599,7 +599,8 @@ function meView() {
     <button class="cta" id="replay-tour" style="margin-bottom:12px;background:var(--card);color:var(--brand-2);border:1px solid var(--line);box-shadow:none">▶ Replay the tour</button></main>`;
 }
 
-load().then(() => { if (q0.get('story') && S) { playStory(q0.get('story') === 'wrapped' ? wrappedSlides() : TOUR); if (q0.get('slide')) { showSlide(Number(q0.get('slide'))); story.paused = true; } } if (q0.get('profile') && S) openProfile(q0.get('profile')); const o = q0.get('open'); if (o && S) { openSheet(o); const d = q0.get('dir'); if (d) { pick.direction = d; drawSheet(); } } });
+if (q0.has('static')) document.head.insertAdjacentHTML('beforeend', '<style>.s-in > *, .tick-cloud span, .lanes i, .confetti i { animation: none !important; opacity: 1 !important; transform: none !important; } .lanes i { width: var(--w) !important; } .confetti { display: none; }</style>');   // preview: freeze animations
+load().then(() => { if (q0.get('story') && S) { playStory(q0.get('story') === 'wrapped' ? wrappedSlides() : TOUR); if (q0.get('slide')) { showSlide(Number(q0.get('slide'))); story.paused = true; } } if (q0.get('profile') && S) openProfile(q0.get('profile')); const o = q0.get('open'); if (o && S) { openSheet(o); if (q0.get('board')) pick.board = q0.get('board'); const d = q0.get('dir'); if (d) { pick.direction = d; drawSheet(); if (q0.has('lock')) lock(); } } });
 setInterval(() => { if (!pick) load(); }, 15000);
 </script>
 </body>

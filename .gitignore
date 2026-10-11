@@ -7,3 +7,8 @@ data/preview.db*
 data/live.backup-*.db
 data/*.log
 .DS_Store
+demo-video/raw/
+demo-video/clips/
+demo-video/scenes/
+demo-video/*.mp4
+demo-video/scenes.json
