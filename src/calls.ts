@@ -44,13 +44,14 @@ export function checkCall(db: DB, a: { traderId: number; pair: string; board: Bo
     throw new CallRejected(`Wait ${Math.ceil((board.minGapMin * 60_000 - (a.now - prev)) / 60_000)} more min between ${board.title} calls.`);
 }
 
-/** Did another trader already have this exact trade open (same pair, direction, board) within the copy lag? */
+/**
+ * Did another trader already have this exact trade open (same pair, direction, board) within the copy lag?
+ * Recorded for every call; whether it counts against the trader is decided at scoring time (see copierSet).
+ */
 export function findLeader(db: DB, traderId: number, pair: string, direction: Direction, board: BoardId, t: number): number | null {
-  const r = db.prepare(`SELECT c.id FROM calls c
-    WHERE c.pair = ? AND c.direction = ? AND c.board = ? AND c.trader_id != ? AND c.locked_at < ? AND c.locked_at >= ?
-      AND (c.resolved_at IS NULL OR c.resolved_at > ?)
-      AND (SELECT COUNT(*) FROM calls d WHERE d.trader_id = c.trader_id AND d.board = c.board AND d.status IN ('win','loss') AND d.resolved_at <= ?) >= ?
-    ORDER BY c.locked_at LIMIT 1`).get(pair, direction, board, traderId, t, t - SCORING.copyLagMin * 60_000, t, t, SCORING.copyLeaderMinDecisive) as { id: number } | undefined;
+  const r = db.prepare(`SELECT id FROM calls WHERE pair = ? AND direction = ? AND board = ? AND trader_id != ? AND locked_at < ? AND locked_at >= ?
+      AND (resolved_at IS NULL OR resolved_at > ?) ORDER BY locked_at LIMIT 1`)
+    .get(pair, direction, board, traderId, t, t - SCORING.copyLagMin * 60_000, t) as { id: number } | undefined;
   return r?.id ?? null;
 }
 

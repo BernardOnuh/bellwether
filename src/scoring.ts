@@ -19,6 +19,22 @@ export function tierFor(shrunk: number) {
   return SCORING.tiers.find((t) => shrunk >= t.min) ?? null;
 }
 
+/**
+ * Habitual copiers as of `asOf`, judged across all boards: at least 8 of their decisive calls landed second behind
+ * an established leader (10+ decisive calls, so throwaway accounts can't manufacture flags), and copies are at least
+ * half of their decisive calls.
+ */
+export function copierSet(db: DB, asOf: number): Set<number> {
+  const rows = db.prepare(`SELECT c.trader_id,
+      COUNT(*) AS decisive,
+      SUM(CASE WHEN c.copied_from IS NOT NULL AND (
+        SELECT COUNT(*) FROM calls d WHERE d.trader_id = l.trader_id AND d.status IN ('win','loss') AND d.resolved_at <= ?) >= ? THEN 1 ELSE 0 END) AS copies
+    FROM calls c LEFT JOIN calls l ON l.id = c.copied_from
+    WHERE c.status IN ('win','loss') AND c.resolved_at <= ?
+    GROUP BY c.trader_id`).all(asOf, SCORING.copyLeaderMinDecisive, asOf) as { trader_id: number; decisive: number; copies: number }[];
+  return new Set(rows.filter((r) => r.copies >= SCORING.copyMinCopies && r.copies / r.decisive >= SCORING.copyHabitualShare).map((r) => r.trader_id));
+}
+
 export type Status = 'eliminated' | 'warmup' | 'unqualified' | 'below tier' | 'BASE' | 'SHARP' | 'WOLF';
 
 export interface TraderStats {
@@ -49,6 +65,7 @@ export function boardStats(db: DB, board: BoardId, asOf = Date.now()): Map<numbe
   const by = new Map<number, Row[]>();
   for (const r of rows) (by.get(r.trader_id) ?? by.set(r.trader_id, []).get(r.trader_id)!).push(r);
 
+  const copiers = copierSet(db, asOf);
   const out = new Map<number, TraderStats>();
   for (const t of traders) {
     const mine = by.get(t.id) ?? [];
@@ -56,7 +73,7 @@ export function boardStats(db: DB, board: BoardId, asOf = Date.now()): Map<numbe
     const open = mine.length - known.length;
     const decisiveAll = known.filter((r) => r.status === 'win' || r.status === 'loss');
     const copies = decisiveAll.filter((r) => r.copied_from !== null).length;
-    const copier = copies >= SCORING.copyMinCopies && copies / decisiveAll.length >= SCORING.copyHabitualShare;
+    const copier = copiers.has(t.id);
     const isWin = (r: Row) => r.status === 'win' && !(copier && r.copied_from !== null);
 
     // reputation window: last 60 days, newest 100 decisive

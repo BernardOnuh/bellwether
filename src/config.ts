@@ -105,7 +105,7 @@ export const REWARDS = {
 };
 
 export const CONSENSUS = {
-  minTraders: 3,
+  minTraders: num('CONSENSUS_MIN_TRADERS', 2),   // qualified traders on the same side (raise as the crowd grows)
   minAgreement: 0.7,
   lookbackFrac: 0.25,       // look back a quarter of the horizon (30 min intraday, 2h swing)
 };

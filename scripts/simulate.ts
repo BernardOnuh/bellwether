@@ -5,7 +5,7 @@
 //
 //   npm run simulate -- [--days 21] [--seed 7]
 import { rmSync, writeFileSync } from 'node:fs';
-import { AGENT, BANDS, BOARDS, BOARD_IDS, CONSENSUS, PAIRS, SCORING, type BoardId, type Direction } from '../src/config.js';
+import { AGENT, BANDS, BOARDS, BOARD_IDS, CONSENSUS, PAIRS, SCORING, boardsFor, type BoardId, type Direction } from '../src/config.js';
 import { costFrac, costR } from '../src/agent.js';
 import { bandFromCandles, saveBand } from '../src/bands.js';
 import { CallRejected, applyOutcome, checkCall, insertCall } from '../src/calls.js';
@@ -73,29 +73,37 @@ const TIERS = [
 ];
 rmSync('data/sim.db', { force: true }); rmSync('data/sim.db-wal', { force: true }); rmSync('data/sim.db-shm', { force: true });
 const db = openDb('data/sim.db');
-type Sim = { id: number; tier: string; edge: number; rate: number; swingShare: number };
+type Sim = { id: number; tier: string; edge: number; rate: number; swingShare: number; longShare: number };
 const traders: Sim[] = [];
 const names = Array.from({ length: TIERS.reduce((a, t) => a + t.n, 0) }, (_, i) => i).sort(() => rand() - 0.5);
 let k = 0;
 for (const t of TIERS) for (let i = 0; i < t.n; i++) {
   const r = db.prepare('INSERT INTO traders (name, simulated, sim_skill, created_at) VALUES (?, 1, ?, ?)')
     .run(`sim_trader_${String(names[k++] + 1).padStart(2, '0')}`, t.tier, start);
-  traders.push({ id: Number(r.lastInsertRowid), tier: t.tier, edge: t.edge, rate: t.rate, swingShare: 0.3 + rand() * 0.4 });
+  traders.push({ id: Number(r.lastInsertRowid), tier: t.tier, edge: t.edge, rate: t.rate, swingShare: 0.3 + rand() * 0.4, longShare: 0.15 + rand() * 0.3 });
 }
 
 // Calls cluster around "moments" on each stock (a move, a headline) during the session, plus background calls.
 type Intent = { t: number; trader: Sim; pair: string; board: BoardId; copyOf?: number };
 const intents: Intent[] = [];
 const active = traders.filter((t) => t.tier !== 'clone');
-const boardFor = (tr: Sim): BoardId => (rand() < tr.swingShare ? 'swing' : 'intraday');
-for (const p of PAIRS) for (let t = start; t < end; t += -Math.log(rand()) * (D / 3)) {
+// Liquid names go to HT/LT; long-term names to D1 (mostly) or D2.
+const boardFor = (tr: Sim, pair: string): BoardId => {
+  const [a, b] = boardsFor(pair);
+  return a === 'intraday' ? (rand() < tr.swingShare ? b : a) : rand() < 0.7 ? a : b;
+};
+const liquidPairs = PAIRS.filter((p) => p.group === 'liquid'), longPairs = PAIRS.filter((p) => p.group === 'long');
+for (const p of PAIRS) for (let t = start; t < end; t += -Math.log(rand()) * (p.group === 'liquid' ? D / 3 : D / 1.5)) {
   if (!sessionOpen(t, 'us')) continue;
-  const board = rand() < 0.5 ? 'swing' : 'intraday';
-  for (const tr of active) if (rand() < 0.22) intents.push({ t: t + rand() * 10 * M, trader: tr, pair: p.symbol, board });
+  const [a, b] = boardsFor(p.symbol);
+  const board = rand() < 0.5 ? a : b;
+  for (const tr of active) if (rand() < 0.22) intents.push({ t: t + rand() * (p.group === 'liquid' ? 10 : 60) * M, trader: tr, pair: p.symbol, board });
 }
 for (const tr of active) for (let i = 0; i < tr.rate * DAYS; i++) {
   const t = start + rand() * DAYS * D;
-  if (sessionOpen(t, 'us')) intents.push({ t, trader: tr, pair: pick(PAIRS).symbol, board: boardFor(tr) });
+  if (!sessionOpen(t, 'us')) continue;
+  const pair = pick(rand() < tr.longShare ? longPairs : liquidPairs).symbol;
+  intents.push({ t, trader: tr, pair, board: boardFor(tr, pair) });
 }
 intents.sort((a, b) => a.t - b.t);
 const queue: Intent[] = [...intents];
@@ -196,7 +204,7 @@ for (; cursor < queue.length; cursor++) {
 console.log();
 
 // Publish the last day's bands into the sim DB for the dashboard.
-for (const p of PAIRS) for (const b of BOARD_IDS) {
+for (const p of PAIRS) for (const b of boardsFor(p.symbol)) {
   const x = bandAt(p.symbol, b, end - 1);
   saveBand(db, { pair: p.symbol, board: b, bps: x.bps, spread_bps: spreadBps.get(p.symbol)!, windows: 0, listed: x.listed ? 1 : 0, computed_at: end });
 }

@@ -19,13 +19,13 @@ export interface Signal {
 
 /**
  * Weighted agreement among qualified traders with calls open on one pair and board, locked within
- * the look-back. Weight = edge over a coin flip (shrunk rate − 0.5). Copies, copiers and eliminated
- * traders carry no weight. Uses only what was known at `now`.
+ * the look-back. Weight = edge over a coin flip (shrunk rate − 0.5). Agreeing with an earlier caller is fine;
+ * habitual copiers and eliminated traders carry no weight. Uses only what was known at `now`.
  */
 export function detectConsensus(db: DB, pair: string, board: BoardId, now: number, bandBps: number): Signal | null {
   const lookback = BOARDS[board].horizonMin * 60_000 * CONSENSUS.lookbackFrac;
   const calls = db.prepare(`SELECT * FROM calls WHERE pair = ? AND board = ? AND locked_at > ? AND locked_at <= ?
-    AND (resolved_at IS NULL OR resolved_at > ?) AND copied_from IS NULL ORDER BY locked_at`)
+    AND (resolved_at IS NULL OR resolved_at > ?) ORDER BY locked_at`)
     .all(pair, board, now - lookback, now, now) as unknown as CallRow[];
   if (calls.length < CONSENSUS.minTraders) return null;
 
