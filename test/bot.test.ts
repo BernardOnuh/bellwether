@@ -86,6 +86,17 @@ test('/pairs lists every tradable stock with HT and LT bands', async () => {
   assert.ok(buttons(last()).includes('p:SPYUSDT'));
 });
 
+test('plain-text calls: "META long LT" style', async () => {
+  await text('ZZZ long lt');
+  assert.match(last().text, /NOT ACCEPTED.*isn't on the list/);
+  await text('spy long ht');                       // listed=0 on HT in this fixture
+  assert.match(last().text, /NOT ACCEPTED<\/b> — SPY is not listed/);
+  await text('orcl short ht');
+  assert.match(last().text, /NOT ACCEPTED<\/b> — ORCL trades on D1 and D2 only/);
+  await text('nvda');
+  assert.ok(buttons(last()).includes('k:NVDAUSDT:swing:long'));
+});
+
 test('stats and leaderboard show both boards', async () => {
   await text('/stats');
   assert.match(last().text, /<b>HT<\/b>[\s\S]*<b>LT<\/b>/);

@@ -19,9 +19,12 @@ const HTML = { parse_mode: 'HTML' as const };
 
 interface Trader { id: number; name: string; onboarded_at: number | null }
 
+/** What a trader sees: PASS (take-profit hit), FAILED (stop hit), NO RESULT (neither in time; doesn't count). */
+export const RESULT_WORD = { open: 'PENDING', win: 'PASS', loss: 'FAILED', wash: 'NO RESULT' } as const;
+
 export function describeCall(c: CallRow) {
   const icon = { open: '⏳', win: '✅', loss: '❌', wash: '➖' }[c.status];
-  const tail = c.status === 'open' ? `until ${etTime(c.expires_at)}` : c.status === 'wash' ? `wash (${c.wash_reason})` : c.status === 'win' ? 'won' : 'lost';
+  const tail = c.status === 'open' ? `result at ${etTime(c.expires_at)}` : RESULT_WORD[c.status];
   return `${icon} ${label(c.pair)} ${c.direction.toUpperCase()} ${short(c.board)} ${bandPct(c.band_bps)} from ${fmt(c.entry, c.entry)} → ${tail}`;
 }
 
@@ -106,6 +109,9 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   ].join('\n');
 
   const helpText = [
+    'Just type a call: <code>META long LT</code> · <code>ORCL short D2</code> · <code>NVDA buy HT</code>',
+    'You get ✅ ACCEPTED now, then ✅ PASS or ❌ FAILED when it resolves.',
+    '',
     '<b>Commands</b>',
     '/pairs — all stocks you can trade, with prices and bands',
     '/call — make a call (or <code>/call NVDA long LT</code>, <code>/call ORCL short D2</code>)',
@@ -277,14 +283,16 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     try {
       const c = await lockCall(db, { traderId: t.id, pair, board, direction });
       const first = (db.prepare('SELECT COUNT(*) AS n FROM calls WHERE trader_id = ?').get(t.id) as { n: number }).n === 1;
-      const text = `🔒 <b>Locked</b> ${label(pair)} ${direction.toUpperCase()} · ${BOARDS[board].title}\n`
+      const text = `✅ <b>ACCEPTED</b> — ${label(pair)} ${direction.toUpperCase()} ${BOARDS[board].title} (${BOARDS[board].hours}h)\n`
         + `Entry ${fmt(c.entry, c.entry)} · TP ${fmt(c.target, c.entry)} · SL ${fmt(c.stop, c.entry)} (${bandPct(c.band_bps)})\n`
-        + `Expires ${etTime(c.expires_at)}\n\nSealed as <code>${c.commit_hash.slice(0, 12)}</code>. Others see only this until it resolves.`
-        + (first ? '\n\n🎉 Your first call! I\'ll message you when it resolves.' : '');
+        + `Result at ${etTime(c.expires_at)} or sooner: I'll message you <b>PASS</b> or <b>FAILED</b>.\n`
+        + `<i>Sealed ${c.commit_hash.slice(0, 12)}: others can't see it until it resolves.</i>`
+        + (first ? '\n\n🎉 Your first call!' : '');
       if (ctx.callbackQuery) await ctx.editMessageText(text, HTML); else await ctx.reply(text, HTML);
     } catch (e) {
       if (!(e instanceof CallRejected)) throw e;
-      if (ctx.callbackQuery) await ctx.editMessageText(`🚫 ${e.message}`); else await ctx.reply(`🚫 ${e.message}`);
+      const msg = `🚫 <b>NOT ACCEPTED</b> — ${esc(e.message)}`;
+      if (ctx.callbackQuery) await ctx.editMessageText(msg, HTML); else await ctx.reply(msg, HTML);
     }
   }
 
@@ -415,9 +423,20 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     if (ctx.message.text.startsWith('/')) return ctx.reply('Unknown command.\n\n' + helpText, HTML);
     const t = getTrader(ctx);
     if (!t.onboarded_at) return startOnboarding(ctx, t);
-    const pair = pairByLabel(ctx.message.text.trim().replace(/^\$/, ''));
-    if (pair && sessionOpen(Date.now())) return showDirection(ctx, pair.symbol);   // typing "NVDA" opens its buttons
-    await ctx.reply('Tap a button or use /help.', { reply_markup: menu() });
+    // Plain-text calls: "META long LT", "orcl short d2", "$NVDA buy ht". Board optional (LT / D1 by default).
+    const m = ctx.message.text.trim().match(/^\$?([a-z]{1,6})(?:\s+(long|short|buy|sell|up|down)(?:\s+(ht|lt|d1|d2|2h|8h|24h|48h))?)?\s*$/i);
+    const pair = m && pairByLabel(m[1]);
+    if (m && !pair) return ctx.reply(`🚫 <b>NOT ACCEPTED</b> — "${esc(m[1].toUpperCase())}" isn't on the list. Send /pairs to see what you can trade.`, HTML);
+    if (pair && !m![2]) return sessionOpen(Date.now()) ? showDirection(ctx, pair.symbol) : ctx.reply(sessionLine(Date.now()));
+    if (pair) {
+      const dir: Direction = /^(long|buy|up)$/i.test(m![2]) ? 'long' : 'short';
+      const hours: Record<string, string> = { '2h': 'ht', '8h': 'lt', '24h': 'd1', '48h': 'd2' };
+      const offered = boardsFor(pair.symbol);
+      const board = m![3] ? boardByTitle(hours[m![3].toLowerCase()] ?? m![3]) : (offered.includes('swing') ? 'swing' : 'd1');
+      if (!board) return ctx.reply('Board must be HT, LT, D1 or D2.');
+      return lock(ctx, t, pair.symbol, board, dir);
+    }
+    await ctx.reply('Type a call like <code>META long LT</code>, or tap a button. /help for more.', { ...HTML, reply_markup: menu() });
   });
 
   bot.catch((e) => console.error('[bot]', e.error));
@@ -439,8 +458,14 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       const tg = (db.prepare('SELECT tg_id FROM traders WHERE id = ?').get(c.trader_id) as { tg_id: string | null })?.tg_id;
       if (!tg) return;
       const s = boardStats(db, c.board, Date.now()).get(c.trader_id)!;
-      const text = `${describeCall(c)}\n${BOARDS[c.board].title}: ${statusLine(s)} · ${s.wins}W ${s.losses}L`
-        + `\n🔓 Revealed: salt <code>${c.salt}</code> (hash <code>${c.commit_hash.slice(0, 12)}</code>)`;
+      const p = todayProgress(db, c.trader_id);
+      const head = c.status === 'win' ? '✅ <b>PASS</b>' : c.status === 'loss' ? '❌ <b>FAILED</b>'
+        : `➖ <b>NO RESULT</b> — ${c.wash_reason === 'ambiguous' ? 'price hit both levels in the same minute' : 'neither level was hit in time'}, so it doesn't count`;
+      const how = c.status === 'win' ? `take-profit ${fmt(c.target, c.entry)} hit` : c.status === 'loss' ? `stop ${fmt(c.stop, c.entry)} hit` : `closed at ${fmt(c.exit_price ?? c.entry, c.entry)}`;
+      const text = `${head}\n${label(c.pair)} ${c.direction.toUpperCase()} ${BOARDS[c.board].title} from ${fmt(c.entry, c.entry)} — ${how}\n\n`
+        + `65% club: last ${p.n} → ${p.wins} pass${p.n >= REWARDS.rollingDecisive ? ` (${pct(p.wins / p.n)}, need ${p.need})` : ` · ${REWARDS.rollingDecisive - p.n} more to count`}\n`
+        + `${BOARDS[c.board].title}: ${statusLine(s)} · ${s.wins} pass / ${s.losses} failed\n`
+        + `<i>Revealed salt ${c.salt.slice(0, 12)}… (hash ${c.commit_hash.slice(0, 12)})</i>`;
       await bot.api.sendMessage(tg, text, { ...HTML, reply_markup: new InlineKeyboard().text('📈 Call again', 'm:call') }).catch(() => {});
     },
     async notifyReward(r: DailyReward) {
