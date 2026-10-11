@@ -52,8 +52,14 @@
   .nav a.link { padding: 8px 12px; border-radius: 999px; color: var(--ink-2); font-size: 14px; font-weight: 600; }
   .nav a.link.on, .nav a.link:hover { color: var(--ink); background: var(--glass-2); }
   .nav .menu-btn { display: none; }
-  @media (max-width: 760px) { .nav a.link { display: none; } .nav .bar.open a.link { display: block; } .nav .bar.open { flex-wrap: wrap; border-radius: 24px; }
-    .nav .menu-btn { display: inline-flex; } }
+  .drawer { position: fixed; inset: 0; z-index: 30; display: none; flex-direction: column; padding: 20px; background: rgb(4 7 12 / .82); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+  .drawer.on { display: flex; }
+  .drawer .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .drawer a.big { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; padding: 12px 4px; border-bottom: 1px solid var(--glass-line); display: flex; justify-content: space-between; align-items: center; }
+  .drawer a.big span { color: var(--sky); font-size: 22px; }
+  .drawer .cta-row { margin-top: auto; flex-direction: column; }
+  .drawer .cta-row .btn { justify-content: center; width: 100%; padding: 16px; }
+  @media (max-width: 760px) { .nav a.link { display: none; } .nav .menu-btn { display: inline-flex; width: 40px; height: 40px; padding: 0; justify-content: center; font-size: 18px; } }
 
   /* buttons */
   .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; cursor: pointer; font: 700 15px Sora, sans-serif; padding: 13px 22px; border-radius: 999px; transition: transform .15s, box-shadow .2s; white-space: nowrap; }
@@ -107,7 +113,7 @@
   .row .pt { text-align: right; font-weight: 800; font-size: 17px; } .row .pt small { display: block; font-size: 11px; color: var(--ink-3); font-weight: 600; }
   .row .meta { color: var(--ink-2); font-size: 13px; text-align: right; }
   @media (max-width: 640px) { .row { grid-template-columns: 26px 40px 1fr auto; } .row .meta { display: none; } }
-  .tier { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; letter-spacing: .03em; vertical-align: 1px; }
+  .tier { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; letter-spacing: .03em; vertical-align: 1px; white-space: nowrap; }
   .t-WOLF { background: linear-gradient(90deg, #6b6ff0, var(--sky-2)); color: #fff; box-shadow: 0 0 14px rgb(107 111 240 / .4); }
   .t-SHARP { background: var(--sky-2); color: var(--on-sky); }
   .t-BASE { background: rgb(124 200 247 / .16); color: var(--sky); }
@@ -115,7 +121,9 @@
   .t-warmup { background: var(--pass-bg); color: var(--pass); }
   .t-agent { background: rgb(144 133 233 / .16); color: #c0b8ff; }
   .t-demo { background: rgb(255 209 102 / .12); color: #ffd98a; border: 1px solid rgb(255 209 102 / .25); }
-  .tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; flex-wrap: wrap; }
+  .tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; white-space: nowrap; }
   .tabs button { border: 0; background: transparent; color: var(--ink-2); font: 600 13px Sora; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
   .tabs button.on { background: linear-gradient(135deg, var(--sky), var(--sky-2)); color: var(--on-sky); }
   .search { border: 1px solid var(--glass-line); background: var(--glass); color: var(--ink); border-radius: 999px; padding: 10px 16px; font: 14px Sora; min-width: 220px; outline: none; }
@@ -177,6 +185,34 @@
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin: 10px 0; } .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
   .banner { padding: 12px 16px; border-radius: 16px; font-size: 13px; background: rgb(255 209 102 / .1); border: 1px solid rgb(255 209 102 / .3); color: #ffe3a3; margin-bottom: 14px; }
 
+  @media (max-width: 640px) {
+    body { font-size: 14px; }
+    .wrap, .nav { padding: 0 14px; }
+    section { margin: 22px 0; }
+    .hero { padding: 44px 0 20px; }
+    .hero .mark { width: 72px; height: 72px; }
+    .cta-row { flex-direction: column; align-items: stretch; } .cta-row .btn { justify-content: center; }
+    .stats { margin-top: 28px; } .stats b { font-size: 24px; } .stats > div { padding: 12px 6px; }
+    .sec-head { align-items: flex-start; } .sec-head .search { width: 100%; min-width: 0; }
+    .podium { gap: 8px; }
+    .pod { padding: 14px 6px 12px; border-radius: 20px; } .pod.first { padding: 20px 6px 16px; }
+    .pod .medal { font-size: 24px; } .pod .av { width: 46px; height: 46px; border-radius: 15px; font-size: 15px; margin-top: 6px; }
+    .pod .nm { font-size: 13px; } .pod .pts { font-size: 20px; } .pod .pts small { display: none; }
+    .pod .tier { font-size: 9.5px; padding: 2px 6px; } .pod .t-demo { display: none; }
+    .rows { padding: 4px; }
+    .row { grid-template-columns: 22px 38px 1fr auto; gap: 10px; padding: 10px 8px; }
+    .row .rk { font-size: 13px; } .row .av { width: 38px; height: 38px; font-size: 12px; }
+    .row .nm div { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; } .row .nm div .tier { font-size: 10px; padding: 1px 6px; }
+    .row .pt { font-size: 16px; } .row .pt small { font-size: 10px; }
+    .tabs button { padding: 7px 12px; font-size: 12.5px; }
+    .prof { padding: 20px; gap: 14px; } .prof .av { margin: 0 auto; width: 70px; height: 70px; }
+    .kpis { gap: 8px; } .kpis div { padding: 12px; } .kpis b { font-size: 20px; }
+    .board-table th:nth-child(5), .board-table td:nth-child(5), .board-table th:nth-child(7), .board-table td:nth-child(7) { display: none; }
+    .board-table th, .board-table td { padding: 8px 5px; font-size: 12px; } .board-table th { font-size: 10px; letter-spacing: .02em; }
+    .call { grid-template-columns: 48px 1fr auto; padding: 10px; gap: 10px; } .call .tk { font-size: 12px; } .call .d { font-size: 12px; }
+    .locked { padding: 20px; } .panel { padding: 20px; }
+    h2 { font-size: 24px; }
+  }
   footer { padding: 40px 0 60px; color: var(--ink-3); font-size: 13px; text-align: center; }
   .empty { text-align: center; color: var(--ink-3); padding: 30px; }
   @media (prefers-reduced-motion: reduce) { .blob, .hero .mark { animation: none; } }
@@ -192,10 +228,19 @@
   <a class="link" href="#/agents" data-r="agents">Agents</a>
   <a class="link" href="#/api" data-r="api">API</a>
   <a class="link" href="#/research" data-r="research">Research</a>
-  <button class="btn ghost sm menu-btn" id="menu" aria-label="Menu">☰</button>
+  <button class="btn ghost sm menu-btn" id="menu" aria-label="Open menu">☰</button>
   <a class="btn primary sm join" target="_blank" rel="noopener">Join</a>
 </div></div>
 
+<div class="drawer" id="drawer">
+  <div class="top"><a class="logo" href="#/" style="display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px"><img src="/assets/logo.svg" alt="" style="width:32px;height:32px">Bellwether</a><button class="btn ghost sm" id="drawer-close" aria-label="Close menu" style="width:40px;height:40px;padding:0;justify-content:center">✕</button></div>
+  <a class="big" href="#/">Home <span>→</span></a>
+  <a class="big" href="#/leaderboard">Leaderboard <span>→</span></a>
+  <a class="big" href="#/agents">Agents <span>→</span></a>
+  <a class="big" href="#/api">API <span>→</span></a>
+  <a class="big" href="#/research">Research <span>→</span></a>
+  <div class="cta-row"><a class="btn primary join" target="_blank" rel="noopener">🔔 Join on Telegram</a><a class="btn ghost" href="#/agents">🤖 Connect your agent</a></div>
+</div>
 <main class="wrap" id="app"></main>
 <footer class="wrap">Bellwether · calls graded on live Bitget stock-perp prices · paper trading only, no deposits, not financial advice</footer>
 
@@ -214,14 +259,16 @@ const av = (r) => `<div class="av">${r.agent ? '🤖' : esc(initials(r.name))}</
 const tags = (r) => `${r.agent ? ' <span class="tier t-agent">AGENT</span>' : ''}${r.demo ? ' <span class="tier t-demo" title="Demo player seeded with simulated skill on real Bitget prices">DEMO</span>' : ''}`;
 const api = (p) => fetch(p).then((r) => r.ok ? r.json() : r.json().then((j) => Promise.reject(new Error(j.error || r.status))));
 document.querySelectorAll('.join').forEach((a) => a.href = BOT);
-$('#menu').onclick = () => $('#navbar').classList.toggle('open');
+$('#menu').onclick = () => $('#drawer').classList.add('on');
+$('#drawer-close').onclick = () => $('#drawer').classList.remove('on');
+document.querySelectorAll('#drawer a').forEach((a) => a.addEventListener('click', () => $('#drawer').classList.remove('on')));
 
 // ---------- router ----------
 const routes = { '': home, leaderboard: leaderboardPage, trader: traderPage, agents: agentsPage, api: apiPage, research: researchPage };
 async function route() {
   const [r, arg] = location.hash.replace(/^#\/?/, '').split('/');
   document.querySelectorAll('.nav a.link').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
-  $('#navbar').classList.remove('open');
+  $('#drawer').classList.remove('on');
   const app = $('#app');
   try { await (routes[r] ?? home)(app, arg); } catch (e) { app.innerHTML = `<section class="glass empty">Couldn't load: ${esc(e.message)}</section>`; }
   window.scrollTo({ top: 0 });
@@ -236,8 +283,8 @@ function podium(L) {
   return `<div class="podium">${p(L[1], 2)}${p(L[0], 1)}${p(L[2], 3)}</div>`;
 }
 const clubRow = (r) => `<a class="row" href="#/trader/${r.id}"><div class="rk">${r.rank}</div>${av(r)}
-    <div class="nm"><span class="n">${esc(r.name)}</span><div>${tierChip(r.tier, r.warmup)}${tags(r)} · last 20 ${r.rolling}${r.streak ? ` · 🔥${r.streak}` : ''}</div></div>
-    <div class="meta">${Math.round(r.pointsAll)} all-time</div><div class="pt num">${Math.round(r.points7d)}<small>pts week</small></div></a>`;
+    <div class="nm"><span class="n">${esc(r.name)}</span><div>${tierChip(r.tier, r.warmup)}${tags(r)}<span>· ${r.rolling} last 20</span>${r.streak ? `<span>· 🔥${r.streak}</span>` : ''}</div></div>
+    <div class="meta">${Math.round(r.pointsAll)} all-time</div><div class="pt num">${Math.round(r.points7d)}<small>pts</small></div></a>`;
 const boardRow = (r) => `<a class="row" href="#/trader/${r.id}"><div class="rk">${r.rank}</div>${av(r)}
     <div class="nm"><span class="n">${esc(r.name)}</span><div>${r.tier ? tierChip(r.tier) : r.status === 'eliminated' ? '<span class="tier" style="background:var(--fail-bg);color:var(--fail)">OUT</span>' : tierChip(null, r.status === 'warmup')}${tags(r)}</div></div>
     <div class="meta">${r.wins} pass · ${r.losses} failed · conf ${pctR(r.confidence)}</div><div class="pt num">${pctR(r.hitRate)}<small>hit rate</small></div></a>`;
@@ -334,7 +381,7 @@ async function traderPage(app, id) {
   const [w, n] = p.last20.split('/').map(Number);
   const res = (r) => r === 'NO RESULT' ? 'r-NO' : `r-${r}`;
   const callRow = (c) => `<div class="call"><div class="tk">${esc(c.symbol)}</div>
-      <div><b>${c.direction === 'long' ? '⬆ LONG' : '⬇ SHORT'} · ${c.board}</b><div class="d num">entry ${px(c.entry)} → PASS ${px(c.target, c.entry)} / FAIL ${px(c.stop, c.entry)} · ${day(c.resolvedAt)}</div></div>
+      <div><b>${c.direction === 'long' ? '⬆ LONG' : '⬇ SHORT'} · ${c.board}</b><div class="d num">${px(c.entry)} → <span style="color:var(--pass)">${px(c.target, c.entry)}</span> / <span style="color:var(--fail)">${px(c.stop, c.entry)}</span> · ${day(c.resolvedAt)}</div></div>
       <span class="res ${res(c.result)}">${c.result}</span></div>`;
   const fakeRows = Array.from({ length: 4 }, (_, i) => `<div class="call"><div class="tk">····</div><div><b>⬆ LONG · LT</b><div class="d">entry 000.00 → PASS 000.00 / FAIL 000.00</div></div><span class="res ${i % 3 ? 'r-PASS' : 'r-FAILED'}">${i % 3 ? 'PASS' : 'FAILED'}</span></div>`).join('');
   app.innerHTML = `<section style="margin-top:40px">
@@ -352,7 +399,7 @@ async function traderPage(app, id) {
       <div class="glass"><b class="num">${p.resolvedTotal}</b><span>calls resolved</span></div>
       <div class="glass"><b class="num">${p.open.length}</b><span>live calls (sealed)</span></div>
     </div>
-    ${p.boards.length ? `<div class="glass scroll" style="padding:8px 14px;margin-bottom:14px"><table><thead><tr><th>Board</th><th>Tier</th><th class="num">Pass</th><th class="num">Failed</th><th class="num">No result</th><th class="num">Hit rate</th><th class="num">Confidence</th></tr></thead>
+    ${p.boards.length ? `<div class="glass scroll" style="padding:8px 14px;margin-bottom:14px"><table class="board-table"><thead><tr><th>Board</th><th>Tier</th><th class="num">Pass</th><th class="num">Failed</th><th class="num">No result</th><th class="num">Hit rate</th><th class="num">Confidence</th></tr></thead>
       <tbody>${p.boards.map((b) => `<tr><td><b>${b.title}</b> <span class="muted">${b.hours}h</span></td><td>${tierChip(b.tier, b.status === 'warmup')}</td><td class="num">${b.wins}</td><td class="num">${b.losses}</td><td class="num">${b.washes}</td><td class="num">${pctR(b.hitRate)}</td><td class="num">${pctR(b.confidence)}</td></tr>`).join('')}</tbody></table></div>` : ''}
     <div class="split">
       <div>
@@ -546,6 +593,7 @@ function drawBars(bt, meta) {
 }
 
 route();
+if (new URLSearchParams(location.search).has('menu')) $('#drawer').classList.add('on');   // preview hook
 setInterval(() => { const r = location.hash.replace(/^#\/?/, '').split('/')[0]; if (r === '' || r === 'leaderboard') route(); }, 30000);
 </script>
 </body>
