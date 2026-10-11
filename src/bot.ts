@@ -5,7 +5,7 @@ import { CallRejected, fmt, lockCall, type CallRow } from './calls.js';
 import { setSetting, getSetting, type DB } from './db.js';
 import { loadBand, loadQuote } from './bands.js';
 import { boardStats, leaderboard, TIER_BADGE, type TraderStats } from './scoring.js';
-import { crossesWeekend, sessionLine, sessionOpen } from './sessions.js';
+import { anyOpen, boardOpen, crossesWeekend, sessionLine } from './sessions.js';
 import type { Signal } from './consensus.js';
 import { rewardBoard, todayProgress, type DailyReward } from './rewards.js';
 import { MAX_AGENTS_PER_OWNER, createAgent, listAgents, revokeAgent } from './agents.js';
@@ -100,7 +100,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     `• The house sets take-profit and stop-loss: the same distance both ways (1:1), sized to how far that stock usually moves. `
       + 'Liquid stocks: <b>HT</b> calls last 2 hours, <b>LT</b> 8 hours. Long-term stocks: <b>D1</b> calls last 24 hours, <b>D2</b> 48 hours.',
     '• ✅ take-profit first = win · ❌ stop first = loss · ➖ neither by expiry = wash (doesn\'t count).',
-    '• Calls open Mon–Fri 04:00–16:00 New York time, and no call may run into the weekend (so D1 closes Thursday, D2 Wednesday).',
+    '• Hours: <b>D1/D2 are open 24/5</b> (Sun 20:00 → Fri 16:00 New York). <b>HT/LT</b> run Mon–Fri 04:00–16:00 New York. No call may run into the weekend.',
     `• Limits per day: ${BOARD_IDS.map((b) => `${BOARDS[b].title} ${BOARDS[b].dailyCap} (${BOARDS[b].minGapMin >= 60 ? BOARDS[b].minGapMin / 60 + 'h' : BOARDS[b].minGapMin + ' min'} apart)`).join(' · ')}. One open call per stock per board.`,
     '',
     `<b>🏆 Daily rewards — the ${pctN(REWARDS.minRate)} club</b>`,
@@ -158,7 +158,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     () => '<b>3/3 · What your calls power</b>\n\nWhen several top-tier traders call the same stock the same way, an AI agent '
       + 'proposes that trade. A human confirms it, and it runs on a <b>Bitget demo account</b> (paper money).\n\n'
       + '• 🔒 Your open calls are sealed. Nobody can copy them live, and copying others doesn\'t pay.\n'
-      + '• 🕓 Calls open Mon–Fri 04:00–16:00 New York time.\n'
+      + '• 🕓 Long-term boards (D1/D2) are open 24/5; HT/LT follow US hours.\n'
       + '• No deposits. We will never ask for money, keys or passwords. Not financial advice.',
   ];
 
@@ -346,7 +346,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
 
   async function showPairPicker(ctx: Context) {
     const now = Date.now();
-    if (!sessionOpen(now)) return ctx.reply(`${sessionLine(now)}\n\nMeanwhile: /leaderboard · /stats · /board`);
+    if (!anyOpen(now)) return ctx.reply(`${sessionLine(now)}\n\nMeanwhile: /leaderboard · /stats · /board`);
     const kb = pairKeyboard().row().text('📋 All pairs with prices', 'm:pairs').text('Cancel', 'cancel');
     const names = (g: 'liquid' | 'long') => PAIRS.filter((p) => p.group === g).map((p) => p.label).join(' ');
     await ctx.reply(`${sessionLine(now)}\n\n⚡ HT/LT: ${names('liquid')}\n🕰 D1/D2: ${names('long')}\n\nPick a stock:`, { reply_markup: kb });
@@ -360,6 +360,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     for (const b of boardsFor(pair)) {
       const band = loadBand(db, pair, b);
       if (!band?.listed) { notes.push(`${BOARDS[b].title}: not listed for ${label(pair)}.`); continue; }
+      if (!boardOpen(b, now)) { notes.push(`${BOARDS[b].title}: closed now (HT/LT trade 04:00–16:00 ET).`); continue; }
       if (crossesWeekend(now + BOARDS[b].horizonMin * 60_000)) { notes.push(`${BOARDS[b].title}: would run into the weekend.`); continue; }
       kb.text(`⬆️ Long ${short(b)} ${bandPct(band.bps)}`, `k:${pair}:${b}:long`).text(`⬇️ Short ${short(b)} ${bandPct(band.bps)}`, `k:${pair}:${b}:short`).row();
     }
@@ -447,7 +448,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     if (!p) return showPairPicker(ctx);
     const pair = pairByLabel(p);
     if (!pair) return ctx.reply(`Unknown stock "${esc(p)}". Try one of: ${PAIRS.map((x) => x.label).join(', ')}`);
-    if (!d) return sessionOpen(Date.now()) ? showDirection(ctx, pair.symbol) : ctx.reply(sessionLine(Date.now()));
+    if (!d) return anyOpen(Date.now()) ? showDirection(ctx, pair.symbol) : ctx.reply(sessionLine(Date.now()));
     const dir = d.toLowerCase().startsWith('l') ? 'long' : d.toLowerCase().startsWith('s') ? 'short' : null;
     const offered = boardsFor(pair.symbol);
     const board = !h ? (offered.includes('swing') ? 'swing' : 'd1') : boardByTitle(h) ?? null;
@@ -457,7 +458,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
 
   bot.callbackQuery(/^p:(\w+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
-    if (!sessionOpen(Date.now())) return ctx.editMessageText(sessionLine(Date.now()));
+    if (!anyOpen(Date.now())) return ctx.editMessageText(sessionLine(Date.now()));
     await showDirection(ctx, ctx.match[1]);
   });
 
@@ -533,7 +534,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     const m = ctx.message.text.trim().match(/^\$?([a-z]{1,6})(?:\s+(long|short|buy|sell|up|down)(?:\s+(ht|lt|d1|d2|2h|8h|24h|48h))?)?\s*$/i);
     const pair = m && pairByLabel(m[1]);
     if (m && !pair) return ctx.reply(`🚫 <b>NOT ACCEPTED</b> — "${esc(m[1].toUpperCase())}" isn't on the list. Send /pairs to see what you can trade.`, HTML);
-    if (pair && !m![2]) return sessionOpen(Date.now()) ? showDirection(ctx, pair.symbol) : ctx.reply(sessionLine(Date.now()));
+    if (pair && !m![2]) return anyOpen(Date.now()) ? showDirection(ctx, pair.symbol) : ctx.reply(sessionLine(Date.now()));
     if (pair) {
       const dir: Direction = /^(long|buy|up)$/i.test(m![2]) ? 'long' : 'short';
       const hours: Record<string, string> = { '2h': 'ht', '8h': 'lt', '24h': 'd1', '48h': 'd2' };

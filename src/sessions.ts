@@ -1,4 +1,4 @@
-import { SESSION } from './config.js';
+import { BOARDS, SESSION, type BoardId } from './config.js';
 
 const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const WD: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
@@ -9,7 +9,7 @@ export function etParts(t: number) {
   return { wd: WD[p.weekday], min: Number(p.hour) * 60 + Number(p.minute) };
 }
 
-/** Can a call be locked at t? Mon–Fri 04:00–16:00 ET (no holiday calendar). */
+/** US session for HT/LT: Mon–Fri 04:00–16:00 ET (no holiday calendar). D1/D2 use open24x5. */
 export function sessionOpen(t: number, mode = SESSION.mode): boolean {
   if (mode === 'always') return true;
   const { wd, min } = etParts(t);
@@ -36,14 +36,39 @@ export function humanDelta(ms: number) {
   return d ? `${d}d ${h}h` : h ? `${h}h ${m % 60}m` : `${m}m`;
 }
 
+/** Around-the-clock weekdays: Sunday 20:00 ET (Asia open) to Friday 16:00 ET. Used by the long-term boards. */
+export function open24x5(t: number, mode = SESSION.mode): boolean {
+  if (mode === 'always') return true;
+  const { wd, min } = etParts(t);
+  return (wd >= 1 && wd <= 4) || (wd === 5 && min < SESSION.closeMin) || (wd === 0 && min >= 20 * 60);
+}
+
+/** Can a call be locked on this board at t? HT/LT follow the US session; D1/D2 are open 24/5. */
+export const boardOpen = (board: BoardId, t: number, mode = SESSION.mode) =>
+  BOARDS[board].group === 'long' ? open24x5(t, mode) : sessionOpen(t, mode);
+export const anyOpen = (t: number, mode = SESSION.mode) => sessionOpen(t, mode) || open24x5(t, mode);
+
+function nextWhen(t: number, f: (x: number) => boolean) {
+  let x = Math.ceil(t / 60_000) * 60_000;
+  for (let i = 0; i < 4 * 24 * 4 && !f(x); i++) x += 15 * 60_000;
+  while (f(x - 60_000)) x -= 60_000;
+  return x;
+}
+const nyTime = (t: number) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+
 export function sessionLine(now: number) {
   if (SESSION.mode === 'always') return '🟢 Demo mode: session calendar off';
-  if (sessionOpen(now)) {
+  const us = sessionOpen(now), long = open24x5(now);
+  if (us) {
     const { min } = etParts(now);
-    return `🟢 Market open · calls close at 16:00 ET (in ${humanDelta((SESSION.closeMin - min) * 60_000)})`;
+    return `🟢 Market open · HT/LT until 16:00 ET (in ${humanDelta((SESSION.closeMin - min) * 60_000)}) · D1/D2 open 24/5`;
   }
-  const o = nextOpen(now);
-  return `🔴 Market closed · calls reopen ${new Date(o).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' })} ET (in ${humanDelta(o - now)})`;
+  if (long) {
+    const o = nextOpen(now);
+    return `🟢 D1/D2 open 24/5 · HT/LT reopen ${nyTime(o)} ET (in ${humanDelta(o - now)})`;
+  }
+  const o = nextWhen(now, (x) => open24x5(x));
+  return `🔴 Market closed · D1/D2 reopen ${nyTime(o)} ET (in ${humanDelta(o - now)}), HT/LT at 04:00 ET Monday`;
 }
 
 const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });

@@ -478,7 +478,7 @@ function renderGrid() {
 function openSheet(symbol) {
   haptic();
   const p = S.market.pairs.find((x) => x.symbol === symbol);
-  const usable = p.boards.filter((b) => b.listed && b.bps && !b.weekendBlocked);
+  const usable = p.boards.filter((b) => b.listed && b.bps && !b.weekendBlocked && !b.closed);
   pick = { p, board: usable[0]?.id ?? p.boards[0].id, direction: null };
   drawSheet();
   $('sheet').classList.add('on'); $('sheet-bg').classList.add('on');
@@ -514,10 +514,10 @@ function drawSheet(result) {
   }
   const b = p.boards.find((x) => x.id === pick.board);
   const d = b?.bps && p.price ? p.price * b.bps / 1e4 : null;
-  const notes = p.boards.filter((x) => !x.listed || x.weekendBlocked).map((x) => `${meta[x.id].title}: ${x.weekendBlocked ? 'would run into the weekend' : 'not listed'}`);
+  const notes = p.boards.filter((x) => !x.listed || x.weekendBlocked || x.closed).map((x) => `${meta[x.id].title}: ${x.closed ? 'closed now (HT/LT 04:00–16:00 ET)' : x.weekendBlocked ? 'would run into the weekend' : 'not listed'}`);
   $('sheet').innerHTML = `<div class="grab"></div>
     <div class="s-head"><div class="avatar" style="font-size:13px">${esc(p.label)}</div><div class="grow"><b style="font-size:19px">${esc(p.name)}</b><span>Your tap locks the live price</span></div><div class="pts num" style="font-size:20px">${px(p.price)}<small>USDT</small></div></div>
-    <div class="seg">${p.boards.map((x) => `<button data-b="${x.id}" class="${x.id === pick.board ? 'on' : ''}" ${!x.listed || x.weekendBlocked ? 'disabled' : ''}>${meta[x.id].title} · ${meta[x.id].hours}h${x.bps ? `<br><small style="font-weight:700">${pct(x.bps)}</small>` : ''}</button>`).join('')}</div>
+    <div class="seg">${p.boards.map((x) => `<button data-b="${x.id}" class="${x.id === pick.board ? 'on' : ''}" ${!x.listed || x.weekendBlocked || x.closed ? 'disabled' : ''}>${meta[x.id].title} · ${meta[x.id].hours}h${x.bps ? `<br><small style="font-weight:700">${pct(x.bps)}</small>` : ''}</button>`).join('')}</div>
     <div class="pads">
       <button class="pad long ${pick.direction === 'long' ? 'on' : ''}" data-d="long"><b>⬆ LONG</b><span class="num">PASS at ${d ? px(p.price + d, p.price) : '–'}</span><span class="num">FAIL at ${d ? px(p.price - d, p.price) : '–'}</span></button>
       <button class="pad short ${pick.direction === 'short' ? 'on' : ''}" data-d="short"><b>⬇ SHORT</b><span class="num">PASS at ${d ? px(p.price - d, p.price) : '–'}</span><span class="num">FAIL at ${d ? px(p.price + d, p.price) : '–'}</span></button>

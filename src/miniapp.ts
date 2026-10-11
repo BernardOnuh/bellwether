@@ -8,7 +8,7 @@ import { CallRejected, lockCall, type CallRow } from './calls.js';
 import type { DB } from './db.js';
 import { rewardBoard, todayProgress, warmupStatus } from './rewards.js';
 import { boardStats } from './scoring.js';
-import { crossesWeekend, sessionLine, sessionOpen } from './sessions.js';
+import { anyOpen, boardOpen, crossesWeekend, sessionLine } from './sessions.js';
 
 export interface TgUser { id: number; first_name?: string; last_name?: string; username?: string }
 
@@ -67,7 +67,7 @@ export const publicCall = (c: CallRow) => ({
 export function market(db: DB) {
   const now = Date.now();
   return {
-    session: { open: sessionOpen(now), line: sessionLine(now) },
+    session: { open: anyOpen(now), line: sessionLine(now) },
     boards: BOARD_IDS.map((b) => ({ id: b, title: BOARDS[b].title, hours: BOARDS[b].hours, group: BOARDS[b].group, dailyCap: BOARDS[b].dailyCap })),
     pairs: PAIRS.map((p) => {
       const q = loadQuote(db, p.symbol);
@@ -75,7 +75,7 @@ export function market(db: DB) {
         symbol: p.symbol, label: p.label, name: p.name, group: p.group, price: q?.price ?? null,
         boards: boardsFor(p.symbol).map((b) => {
           const x = loadBand(db, p.symbol, b);
-          return { id: b, bps: x?.bps ?? null, listed: !!x?.listed, weekendBlocked: crossesWeekend(now + BOARDS[b].horizonMin * 60_000) };
+          return { id: b, bps: x?.bps ?? null, listed: !!x?.listed, closed: !boardOpen(b, now), weekendBlocked: crossesWeekend(now + BOARDS[b].horizonMin * 60_000) };
         }),
       };
     }),

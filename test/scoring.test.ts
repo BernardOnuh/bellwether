@@ -169,3 +169,24 @@ test('8-day warmup before the 65% club pays', async () => {
   assert.equal(r.eligible, 0);
   assert.match(r.reason!, /warmup: day 3 of 8/);
 });
+
+test('10% risk cap: worst case of all open trades + the new one stopping out stays within 10% of peak', async () => {
+  const { drawdownBlock } = await import('../src/agent.js');
+  // 1,000 USDT paper account, 10 USDT risk per trade, costs up to 0.25R -> 12.5 USDT worst case per trade
+  assert.equal(drawdownBlock(1000, 1000, 0), null);              // 1.25% worst case
+  assert.equal(drawdownBlock(1000, 1000, 2), null);              // 3 trades -> 3.75%
+  assert.equal(drawdownBlock(930, 1000, 1), null);               // 7% down + 2 trades (2.5%) = 9.5%
+  assert.match(drawdownBlock(930, 1000, 2)!, /10% risk cap/);    // 7% + 3.75% = 10.75% -> blocked
+  assert.match(drawdownBlock(905, 1000, 0)!, /10% risk cap/);    // 9.5% + 1.25% -> blocked
+  assert.equal(drawdownBlock(1100, 1150, 0), null);              // measured from the peak, not the start
+});
+
+test('long-term boards are open 24/5; HT/LT keep US hours', async () => {
+  const { boardOpen } = await import('../src/sessions.js');
+  const monNight = Date.UTC(2026, 9, 13, 3, 0);   // Mon 23:00 EDT
+  assert.equal(boardOpen('d1', monNight, 'us'), true);
+  assert.equal(boardOpen('intraday', monNight, 'us'), false);
+  assert.equal(boardOpen('d2', Date.UTC(2026, 9, 12, 0, 30), 'us'), true);    // Sun 20:30 EDT: Asia open
+  assert.equal(boardOpen('d2', Date.UTC(2026, 9, 11, 23, 30), 'us'), false);  // Sun 19:30 EDT
+  assert.equal(boardOpen('d1', Date.UTC(2026, 9, 16, 20, 30), 'us'), false);  // Fri 16:30 EDT
+});

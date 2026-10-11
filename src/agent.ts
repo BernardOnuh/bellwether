@@ -21,6 +21,23 @@ export const costFrac = (price: number, spread: number) => 2 * RULES.takerFee + 
 /** Cost in R for a band: what a trade gives up before it moves. */
 export const costR = (bandBps: number, spreadBps: number) => (2 * RULES.takerFee * 1e4 + spreadBps) / bandBps;
 
+/** Paper-account equity curve from resolved agent trades: current equity, its running peak, and drawdown from peak. */
+export function drawdownStatus(db: DB, simulated = 0) {
+  const rows = db.prepare('SELECT pnl_r FROM agent_trades WHERE simulated = ? AND pnl_r IS NOT NULL ORDER BY resolved_at').all(simulated) as { pnl_r: number }[];
+  let equity = AGENT.paperEquity, peak = equity;
+  for (const r of rows) { equity += r.pnl_r * AGENT.riskUsdt; peak = Math.max(peak, equity); }
+  return { equity, peak, drawdownPct: (peak - equity) / peak };
+}
+
+/** Worst case if `openCount` open trades plus one new trade all stop out with full costs. Blocks if that breaks the cap. */
+export function drawdownBlock(equity: number, peak: number, openCount: number): string | null {
+  const worst = (openCount + 1) * AGENT.riskUsdt * (1 + AGENT.maxCostR);
+  const ddIfAllLose = (peak - (equity - worst)) / peak;
+  return ddIfAllLose > AGENT.maxDrawdownPct
+    ? `10% risk cap: worst case would be ${(ddIfAllLose * 100).toFixed(1)}% below peak (now ${(((peak - equity) / peak) * 100).toFixed(1)}%)`
+    : null;
+}
+
 /** Risk gate. Returns a block reason or null. */
 export function riskGate(db: DB, s: { pair: string; band_bps: number; board: string }, spreadBps: number, now: number): string | null {
   if (getSetting(db, 'kill') === '1') return 'kill switch is on';
@@ -33,7 +50,8 @@ export function riskGate(db: DB, s: { pair: string; band_bps: number; board: str
   if (db.prepare(`SELECT 1 FROM agent_trades WHERE ${live} AND pair = ?`).get(s.pair)) return `already in ${label(s.pair)}`;
   const { r } = db.prepare('SELECT COALESCE(SUM(pnl_r), 0) AS r FROM agent_trades WHERE simulated = 0 AND resolved_at >= ?').get(dayStart(now)) as { r: number };
   if (r <= -AGENT.dailyLossLimitR) return `daily loss limit hit (${r.toFixed(2)}R)`;
-  return null;
+  const dd = drawdownStatus(db);
+  return drawdownBlock(dd.equity, dd.peak, n);
 }
 
 export function templateReason(s: Signal) {

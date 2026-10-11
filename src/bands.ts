@@ -6,7 +6,7 @@ import { BANDS, BOARDS, PAIRS, boardsFor, type BoardId } from './config.js';
 import type { DB } from './db.js';
 import { history } from './history.js';
 import { allTickers, type Candle } from './market.js';
-import { crossesWeekend, sessionOpen } from './sessions.js';
+import { boardOpen, crossesWeekend } from './sessions.js';
 import { lowerBound } from './history.js';
 
 export interface Band { pair: string; board: BoardId; bps: number; spread_bps: number; windows: number; listed: number; computed_at: number }
@@ -18,11 +18,11 @@ const median = (xs: number[]) => {
 };
 
 /** Median max(high − open, open − low) / open over horizon windows that start inside the US session. */
-export function bandFromCandles(cs: Candle[], horizonMin: number, from: number, to: number, strideMin = BANDS.strideMin) {
+export function bandFromCandles(cs: Candle[], horizonMin: number, from: number, to: number, strideMin = BANDS.strideMin, board: BoardId = 'intraday') {
   const h = horizonMin * 60_000, step = strideMin * 60_000;
   const moves: number[] = [];
   for (let s = Math.ceil(from / step) * step; s + h <= to; s += step) {
-    if (!sessionOpen(s, 'us') || crossesWeekend(s + h, 'us')) continue;   // only windows a call could actually have
+    if (!boardOpen(board, s, 'us') || crossesWeekend(s + h, 'us')) continue;   // only windows a call could actually have
     let i = lowerBound(cs, s);
     if (!cs[i] || cs[i].ts >= s + step) continue;
     const open = cs[i].o;
@@ -49,7 +49,7 @@ export const loadBands = (db: DB) => db.prepare('SELECT * FROM bands ORDER BY pa
 export const loadQuote = (db: DB, pair: string) => db.prepare('SELECT * FROM quotes WHERE pair = ?').get(pair) as Quote | undefined;
 
 export function makeBand(pair: string, board: BoardId, cs: Candle[], spreadBps: number, now: number): Band {
-  const { bps, windows } = bandFromCandles(cs, BOARDS[board].horizonMin, now - BANDS.volWindowDays * 86_400_000, now);
+  const { bps, windows } = bandFromCandles(cs, BOARDS[board].horizonMin, now - BANDS.volWindowDays * 86_400_000, now, BANDS.strideMin, board);
   const listed = Number.isFinite(bps) && windows >= 20 && bps >= BANDS.minSpreadMultiple * spreadBps ? 1 : 0;
   return { pair, board, bps, spread_bps: spreadBps, windows, listed, computed_at: now };
 }

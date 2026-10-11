@@ -4,7 +4,7 @@ import type { DB } from './db.js';
 import { loadBand, type Band } from './bands.js';
 import { candles, ticker, type Ticker } from './market.js';
 import { levels, resolveBracket } from './resolve.js';
-import { crossesWeekend, sessionLine, sessionOpen } from './sessions.js';
+import { boardOpen, crossesWeekend, sessionLine } from './sessions.js';
 
 export interface CallRow {
   id: number; trader_id: number; board: BoardId; pair: string; direction: Direction; band_bps: number; distance: number;
@@ -28,7 +28,7 @@ export function checkCall(db: DB, a: { traderId: number; pair: string; board: Bo
   if (!pairBySymbol(a.pair)) throw new CallRejected(`Unknown pair ${a.pair}.`);
   if (!boardsFor(a.pair).includes(a.board))
     throw new CallRejected(`${label(a.pair)} trades on ${boardsFor(a.pair).map((b) => BOARDS[b].title).join(' and ')} only.`);
-  if (!sessionOpen(a.now, a.mode)) throw new CallRejected(sessionLine(a.now));
+  if (!boardOpen(a.board, a.now, a.mode)) throw new CallRejected(`${board.title} is closed right now. ${sessionLine(a.now)}`);
   if (a.mode !== 'always' && crossesWeekend(a.now + board.horizonMin * 60_000)) throw new CallRejected(`A ${board.title} call now would run into the weekend. Try the shorter board or wait for Monday.`);
   const band = a.band;
   if (!band || !Number.isFinite(band.bps)) throw new CallRejected('Bands are not calibrated yet, try again shortly.');

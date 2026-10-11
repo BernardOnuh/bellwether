@@ -45,7 +45,7 @@ const bandCache = new Map<string, { bps: number; listed: boolean }>();
 function bandAt(pair: string, board: BoardId, t: number) {
   const day = Math.floor(t / D) * D, key = `${pair}:${board}:${day}`;
   if (!bandCache.has(key)) {
-    const { bps, windows } = bandFromCandles(m5.get(pair)!, BOARDS[board].horizonMin, day - BANDS.volWindowDays * D, day);
+    const { bps, windows } = bandFromCandles(m5.get(pair)!, BOARDS[board].horizonMin, day - BANDS.volWindowDays * D, day, BANDS.strideMin, board);
     bandCache.set(key, { bps, listed: Number.isFinite(bps) && windows >= 20 });
   }
   return bandCache.get(key)!;

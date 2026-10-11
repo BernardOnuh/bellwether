@@ -28,7 +28,7 @@ The design follows the fixed-band, confidence-gated scoring of Infinite Quant's 
 | **D1** | 24 hours | 15 long-term: INTC ORCL NFLX TSM ARM DELL QCOM MRVL SMCI CRWD AMAT DDOG NKE BABA RKLB | 2/day, 2 h apart |
 | **D2** | 48 hours | same 15 | 1/day |
 
-- **Hours:** calls open Monday–Friday, 04:00–16:00 New York time. On Bitget, NVDA's perp trades about $23k a minute in pre-market and regular hours, a third of that overnight, and 54% of weekend minutes have no trades.
+- **Hours:** the long-term boards (D1/D2) are open **24/5**, from Sunday 20:00 to Friday 16:00 New York time, when Asian, European and US traders are all active. HT/LT calls open Monday–Friday, 04:00–16:00 New York time. On Bitget, NVDA's perp trades about $23k a minute in pre-market and regular hours, a third of that overnight, and 54% of weekend minutes have no trades.
 - **No weekend holds:** no call may still be running after Friday 20:00 New York time, so D1 calls close Thursday and D2 calls close Wednesday.
 - **Listing rule:** a stock is listed on a board only if its band is at least 8× its spread.
 - **One open call per stock per board.**

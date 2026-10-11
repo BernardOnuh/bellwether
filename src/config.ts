@@ -120,6 +120,10 @@ export const AGENT = {
   maxOpen: 3,
   dailyLossLimitR: 3,
   maxCostR: 0.25,           // skip trades where fees + spread exceed a quarter of the band
+  // Account-level risk cap. The paper account starts at paperEquity; a new trade is allowed only if, even when it and
+  // every open trade hit their stops (1R + costs each), the account stays within maxDrawdownPct of its peak.
+  paperEquity: num('AGENT_PAPER_EQUITY', 1000),
+  maxDrawdownPct: num('AGENT_MAX_DRAWDOWN', 0.10),
   confirmTimeoutMs: 3 * 60_000,
 };
 

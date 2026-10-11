@@ -11,7 +11,7 @@ import { CallRejected, lockCall, type CallRow } from './calls.js';
 import type { DB } from './db.js';
 import { market, me, publicCall } from './miniapp.js';
 import { boardLeaderboard, traderHistory, traderProfile } from './profiles.js';
-import { sessionLine, sessionOpen } from './sessions.js';
+import { anyOpen, sessionLine } from './sessions.js';
 
 const LIMITS = { key: 60, ip: 120 };
 const hits = new Map<string, number[]>();
@@ -41,7 +41,7 @@ function overview(db: DB) {
   const p = db.prepare(`SELECT SUM(kind='human') AS humans, SUM(kind='agent') AS agents, SUM(simulated) AS demo FROM traders WHERE first_call_at IS NOT NULL`).get() as Record<string, number | null>;
   const decided = (c.pass ?? 0) + (c.failed ?? 0);
   return {
-    session: { open: sessionOpen(now), line: sessionLine(now) },
+    session: { open: anyOpen(now), line: sessionLine(now) },
     stats: { players: p.humans ?? 0, agents: p.agents ?? 0, demo: p.demo ?? 0, calls: c.calls ?? 0, open: c.open ?? 0, passRate: decided ? (c.pass ?? 0) / decided : null, stocks: PAIRS.length },
     leaderboard: boardLeaderboard(db, 'club', 10, now),
     bot: 'https://t.me/BellWetherCallsbot',
