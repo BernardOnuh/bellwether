@@ -1,0 +1,37 @@
+# Render Blueprint: New → Blueprint → pick this repo. Secrets marked sync:false are asked for during setup.
+services:
+  - type: web
+    name: bellwether
+    runtime: node
+    plan: starter            # always-on: the bot polls Telegram, grades calls every 20s and settles rewards at midnight NY
+    region: oregon
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    disk:
+      name: bellwether-data
+      mountPath: /var/data   # SQLite lives here and survives deploys
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: DB_FILE
+        value: /var/data/live.db
+      - key: SESSION_MODE
+        value: us            # "always" turns the market-hours calendar off (weekend demos only)
+      - key: AGENT_MODE
+        value: confirm
+      - key: AGENT_RISK_USDT
+        value: "10"
+      - key: SEED_DEMO_ON_EMPTY
+        value: "1"           # seed the 10 DEMO players on the first boot; set to 0 to start empty
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: ADMIN_CHAT_ID
+        sync: false
+      - key: BITGET_API_KEY
+        sync: false
+      - key: BITGET_SECRET_KEY
+        sync: false
+      - key: BITGET_PASSPHRASE
+        sync: false

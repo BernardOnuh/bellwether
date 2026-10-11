@@ -43,7 +43,7 @@ function statusLine(s: TraderStats) {
 }
 
 /** Mini App URL (must be https). When set, menus get an "Open app" button and the chat menu button opens it. */
-const webAppUrl = () => (process.env.WEBAPP_URL?.startsWith('https://') ? `${process.env.WEBAPP_URL.replace(/\/$/, '')}/app` : null);
+const webAppUrl = () => { const u = process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || ''; return u.startsWith('https://') ? `${u.replace(/\/$/, '')}/app` : null; };
 
 const menu = () => {
   const kb = new InlineKeyboard();
@@ -251,7 +251,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   bot.command('apikey', async (ctx) => {
     const owner = String(ctx.from!.id);
     const [sub, ...rest] = ctx.match.trim().split(/\s+/).filter(Boolean);
-    const base = (process.env.WEBAPP_URL || `http://localhost:${process.env.DASHBOARD_PORT ?? 8787}`).replace(/\/$/, '');
+    const base = (process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT ?? process.env.DASHBOARD_PORT ?? 8787}`).replace(/\/$/, '');
     if (sub === 'new') {
       const r = createAgent(db, owner, rest.join(' '));
       if ('error' in r) return ctx.reply(`🚫 ${esc(r.error)}`, HTML);
@@ -305,7 +305,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       const r = approveRequest(db, id);
       if (!r) return ctx.editMessageText('Already decided.');
       await ctx.editMessageText(`✅ Approved request #${id} from ${r.request.name}.`);
-      const base = (process.env.WEBAPP_URL || `http://localhost:${process.env.DASHBOARD_PORT ?? 8787}`).replace(/\/$/, '');
+      const base = (process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT ?? process.env.DASHBOARD_PORT ?? 8787}`).replace(/\/$/, '');
       await bot.api.sendMessage(r.request.tg_id, [
         '🎉 <b>API access approved!</b> Your data key (shown once, keep it secret):',
         `<code>${r.key}</code>`, '',

@@ -117,7 +117,7 @@ export type DB = DatabaseSync;
 export function openDb(file = process.env.DB_FILE ?? 'data/live.db'): DB {
   if (file !== ':memory:') mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 10000;');
   migrateFromV1(db);
   db.exec(SCHEMA);
   // Agents (API traders): owned by a Telegram user, authenticated by an API key stored only as a sha256 hash.

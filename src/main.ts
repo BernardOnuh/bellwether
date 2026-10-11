@@ -9,6 +9,21 @@ import { createBot } from './bot.js';
 import { startDashboard } from './server.js';
 
 const db = openDb();
+
+/** Public https base URL: WEBAPP_URL if set, else Render's own external URL. */
+export const publicUrl = () => {
+  const u = process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || '';
+  return u.startsWith('https://') ? u.replace(/\/$/, '') : null;
+};
+if (!process.env.WEBAPP_URL && process.env.RENDER_EXTERNAL_URL) process.env.WEBAPP_URL = process.env.RENDER_EXTERNAL_URL;
+
+// Stop cleanly on deploys/restarts so a new instance can take over Telegram polling.
+for (const sig of ['SIGTERM', 'SIGINT'] as const) process.once(sig, async () => {
+  console.log(`[main] ${sig}: shutting down`);
+  try { await tg?.bot.stop(); } catch {}
+  try { db.close(); } catch {}
+  process.exit(0);
+});
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const tg = token ? createBot(db, token) : null;
 if (!tg) console.warn('TELEGRAM_BOT_TOKEN not set: running engine and dashboard only.');
@@ -16,6 +31,14 @@ if (SESSION.mode === 'always') console.warn('SESSION_MODE=always: market-hours c
 
 console.log('Calibrating house bands (first run fetches 30 days of 5m candles per stock)...');
 await refreshBands(db);
+
+// Optional: on an empty database (fresh deploy), seed the DEMO players once. Runs in the background (~3–5 min of Bitget history).
+if (process.env.SEED_DEMO_ON_EMPTY === '1' && !db.prepare("SELECT 1 FROM traders WHERE sim_skill LIKE 'demo:%'").get()) {
+  const { spawn } = await import('node:child_process');
+  console.log('[main] seeding DEMO players in the background…');
+  spawn(process.execPath, ['--no-warnings=ExperimentalWarning', '--import', 'tsx', 'scripts/seed-demo.ts'], { stdio: 'inherit', env: process.env })
+    .on('exit', (code) => console.log(`[main] demo seeding finished (exit ${code})`));
+}
 setInterval(() => refreshBands(db).catch((e) => console.error('[bands]', e)), 60 * 60_000);
 setInterval(() => refreshQuotes(db).catch((e) => console.error('[quotes]', e)), 30_000);
 
@@ -56,7 +79,7 @@ async function tick() {
 setInterval(tick, 20_000);
 tick();
 
-startDashboard(Number(process.env.DASHBOARD_PORT ?? 8787));
+startDashboard(Number(process.env.PORT ?? process.env.DASHBOARD_PORT ?? 8787));
 if (tg) {
   try {
     await tg.bot.api.getMe();
@@ -66,12 +89,15 @@ if (tg) {
   }
   if (!process.env.ADMIN_CHAT_ID) console.warn('ADMIN_CHAT_ID not set: send /myid to the bot, put the number in .env, restart. Until then nobody can confirm agent trades.');
   await tg.bot.api.setMyCommands(tg.commands);
-  const webApp = process.env.WEBAPP_URL?.startsWith('https://') ? `${process.env.WEBAPP_URL.replace(/\/$/, '')}/app` : null;
+  const webApp = publicUrl() ? `${publicUrl()}/app` : null;
   await tg.bot.api.setChatMenuButton({ menu_button: webApp ? { type: 'web_app', text: 'Open app', web_app: { url: webApp } } : { type: 'commands' } });
   console.log(webApp ? `Mini App: ${webApp} (chat menu button set)` : 'Mini App: set WEBAPP_URL=https://… to enable the menu button');
   await tg.bot.api.setMyDescription('Bellwether: call where US stocks go next. Pick a stock, tap long or short, and get graded against live Bitget prices. '
     + 'Earn a tier (BASE, SHARP, WOLF) on the leaderboard; the top callers lead an AI agent that paper-trades their consensus. '
     + 'Free, no deposits, not financial advice.');
   await tg.bot.api.setMyShortDescription('Call US stocks. Earn your tier. Lead the agent.');
-  tg.bot.start({ onStart: (me) => console.log(`Bot @${me.username} running · ${PAIRS.length} stocks`) });
+  // Long polling. If another instance is still polling (e.g. during a deploy), Telegram answers 409: wait and retry.
+  const startBot = () => tg.bot.start({ onStart: (me) => console.log(`Bot @${me.username} running · ${PAIRS.length} stocks`) })
+    .catch((e) => { console.error('[bot] polling stopped:', (e as Error).message, '— retrying in 15s'); setTimeout(startBot, 15_000); });
+  startBot();
 }

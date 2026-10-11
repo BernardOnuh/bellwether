@@ -49,6 +49,7 @@ export function startDashboard(port: number) {
   createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
     try {
+      if (url.pathname === '/healthz') { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('ok'); }
       if (await handleMiniApp(dbFor('live'), req, res, url.pathname)) return;
       if (await handleAgentApi(dbFor('live'), req, res, url)) return;
       if (url.pathname === '/app' || url.pathname === '/app/') {

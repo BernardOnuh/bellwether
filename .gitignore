@@ -5,3 +5,5 @@ data/*.db-*
 data/cache/
 data/preview.db*
 data/live.backup-*.db
+data/*.log
+.DS_Store
