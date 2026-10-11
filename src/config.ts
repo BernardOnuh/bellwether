@@ -84,6 +84,18 @@ export const SCORING = {
   copyLeaderMinDecisive: 10,
 };
 
+/**
+ * Daily rewards ("65% club"): each trading day, traders whose last 20 wins+losses are >= 65% and who made
+ * at least 2 calls that day split a fixed points pool, weighted by that day's wins x tier. Unclaimed points burn.
+ */
+export const REWARDS = {
+  minRate: num('REWARD_MIN_RATE', 0.65),
+  rollingDecisive: 20,
+  minCallsToday: 2,
+  dailyPool: num('REWARD_DAILY_POOL', 1000),
+  settleDelayMin: 5,        // settle 00:05 New York, after the day's swing calls have resolved
+};
+
 export const CONSENSUS = {
   minTraders: 3,
   minAgreement: 0.7,

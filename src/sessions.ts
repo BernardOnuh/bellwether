@@ -45,3 +45,34 @@ export function sessionLine(now: number) {
   const o = nextOpen(now);
   return `🔴 Market closed · calls reopen ${new Date(o).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' })} ET (in ${humanDelta(o - now)})`;
 }
+
+const dateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+/** New York calendar date (YYYY-MM-DD) of an instant. */
+export function etDay(t: number): string {
+  const p = Object.fromEntries(dateFmt.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/** The instant of 00:00 New York at the end of the given New York date. */
+export function etDayEnd(day: string): number {
+  const [y, m, d] = day.split('-').map(Number);
+  let t = Date.UTC(y, m - 1, d + 1, 3, 0);            // 23:00 EDT / 22:00 EST: still `day` in New York
+  while (etDay(t) === day) t += 3600_000;             // offsets are whole hours, so this lands on 00:00
+  return t;
+}
+
+/** Is this New York date a trading day for the calendar in force? */
+export function isTradingDay(day: string, mode = SESSION.mode): boolean {
+  if (mode === 'always') return true;
+  const [y, m, d] = day.split('-').map(Number);
+  const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return wd >= 1 && wd <= 5;
+}
+
+export function prevTradingDay(day: string, mode = SESSION.mode): string {
+  const [y, m, d] = day.split('-').map(Number);
+  let t = Date.UTC(y, m - 1, d);
+  do { t -= 86_400_000; } while (!isTradingDay(new Date(t).toISOString().slice(0, 10), mode));
+  return new Date(t).toISOString().slice(0, 10);
+}

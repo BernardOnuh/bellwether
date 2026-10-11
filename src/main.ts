@@ -4,6 +4,7 @@ import { loadBand, refreshBands, refreshQuotes } from './bands.js';
 import { resolveOpenCalls } from './calls.js';
 import { detectConsensus, saveSignal } from './consensus.js';
 import { openDb } from './db.js';
+import { settleDue } from './rewards.js';
 import { createBot } from './bot.js';
 import { startDashboard } from './server.js';
 
@@ -37,6 +38,10 @@ async function tick() {
       console.log(`[signal] ${board} ${pair} ${s.direction} n=${s.n_traders} -> trade #${trade.id} ${trade.status} ${trade.risk_note ?? ''}`);
       if (trade.status === 'proposed' && AGENT.mode === 'paper') trade = await execute(db, trade.id);
       await tg?.notifySignal(saved, trade);
+    }
+    for (const r of settleDue(db)) {
+      console.log(`[rewards] ${r.day} trader ${r.trader_id}: ${r.eligible ? `+${r.points} pts, streak ${r.streak}` : r.reason}`);
+      await tg?.notifyReward(r);
     }
     for (const t of await monitor(db)) {
       console.log(`[agent] #${t.id} ${t.pair} -> ${t.status} ${t.pnl_r?.toFixed(2)}R`);

@@ -87,3 +87,46 @@ test('commit hash reveals and verifies', () => {
   assert.equal(commitHash(c), c.commit_hash);
   assert.notEqual(commitHash({ ...c, direction: 'long' }), c.commit_hash);
 });
+
+test('New York day boundaries across DST', async () => {
+  const { etDay, etDayEnd, prevTradingDay } = await import('../src/sessions.js');
+  assert.equal(etDayEnd('2026-10-12'), Date.UTC(2026, 9, 13, 4));   // EDT
+  assert.equal(etDayEnd('2026-12-01'), Date.UTC(2026, 11, 2, 5));   // EST
+  assert.equal(etDay(Date.UTC(2026, 9, 13, 3, 59)), '2026-10-12');
+  assert.equal(prevTradingDay('2026-10-12', 'us'), '2026-10-09');   // Monday -> Friday
+});
+
+test('daily 65% club: rolling 20, two calls today, pool split, streaks', async () => {
+  const { settleDay } = await import('../src/rewards.js');
+  const db = openDb(':memory:');
+  for (const n of ['good', 'meh', 'lazy']) db.prepare('INSERT INTO traders (name, created_at) VALUES (?, 0)').run(n);
+  const mon = Date.UTC(2026, 9, 12, 14);   // Mon 10:00 EDT
+  let k = 0;
+  const mk = (tr: number, t: number, st: 'win' | 'loss') => {
+    const c = insertCall(db, { traderId: tr, pair: ['NVDAUSDT', 'TSLAUSDT', 'AAPLUSDT', 'MSFTUSDT'][k++ % 4], board: 'intraday', direction: 'long', bandBps: 50, entry: 100, lockedAt: t });
+    applyOutcome(db, c.id, { status: st, at: t + 30 * M, exit: 100 } as never);
+  };
+  // history before Monday: good 14/20, meh 12/20, lazy 15/20
+  for (let i = 0; i < 20; i++) {
+    const t = mon - 5 * DAY + i * 3 * 3600_000;
+    mk(1, t, i < 14 ? 'win' : 'loss'); mk(2, t + M, i < 12 ? 'win' : 'loss'); mk(3, t + 2 * M, i < 15 ? 'win' : 'loss');
+  }
+  // Monday: good makes 2 winning calls, meh 2 winning calls, lazy only 1
+  mk(1, mon, 'win'); mk(1, mon + 3600_000, 'win');
+  mk(2, mon + 60 * M, 'win'); mk(2, mon + 2 * 3600_000, 'win');
+  mk(3, mon, 'win');
+  const rows = new Map(settleDay(db, '2026-10-12', 'us').map((r) => [r.trader_id, r]));
+  // good: last 20 = 12 old wins... rolling uses the newest 20 decisive: 14W/6L history minus oldest two (wins) + 2 wins = 14/20
+  assert.equal(rows.get(1)!.eligible, 1);
+  assert.equal(rows.get(1)!.points, 1000);
+  assert.equal(rows.get(1)!.streak, 1);
+  assert.equal(rows.get(2)!.eligible, 0);
+  assert.match(rows.get(2)!.reason!, /need 13/);
+  assert.equal(rows.get(3)!.eligible, 0);
+  assert.match(rows.get(3)!.reason!, /need 2/);
+  // Tuesday keeps the streak going
+  const tue = mon + DAY;
+  mk(1, tue, 'win'); mk(1, tue + 3600_000, 'loss');
+  const t2 = new Map(settleDay(db, '2026-10-13', 'us').map((r) => [r.trader_id, r]));
+  assert.equal(t2.get(1)!.streak, 2);
+});

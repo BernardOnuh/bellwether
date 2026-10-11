@@ -1,5 +1,5 @@
 import { Bot, InlineKeyboard, type Context } from 'grammy';
-import { AGENT, BOARDS, BOARD_IDS, PAIRS, SCORING, label, pairBySymbol, pairByLabel, type BoardId, type Direction } from './config.js';
+import { AGENT, BOARDS, BOARD_IDS, PAIRS, REWARDS, SCORING, label, pairBySymbol, pairByLabel, type BoardId, type Direction } from './config.js';
 import { execute, getTrade, reject, type AgentTrade } from './agent.js';
 import { CallRejected, fmt, lockCall, type CallRow } from './calls.js';
 import { setSetting, getSetting, type DB } from './db.js';
@@ -7,7 +7,9 @@ import { loadBand, loadQuote } from './bands.js';
 import { boardStats, leaderboard, TIER_BADGE, type TraderStats } from './scoring.js';
 import { crossesWeekend, sessionLine, sessionOpen } from './sessions.js';
 import type { Signal } from './consensus.js';
+import { rewardBoard, todayProgress, type DailyReward } from './rewards.js';
 
+const pctN = (x: number) => `${Math.round(x * 100)}%`;
 const pct = (x: number) => (Number.isFinite(x) ? `${(x * 100).toFixed(0)}%` : '–');
 const bandPct = (bps: number) => `±${(bps / 100).toFixed(2)}%`;
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
@@ -88,11 +90,15 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     `• Calls open Mon–Fri 04:00–16:00 New York time. Limits: Intraday ${BOARDS.intraday.dailyCap}/day (${BOARDS.intraday.minGapMin} min apart), `
       + `Swing ${BOARDS.swing.dailyCap}/day (${BOARDS.swing.minGapMin} min apart), one open call per stock per board.`,
     '',
-    '<b>Scoring</b> (each board separately)',
+    `<b>🏆 Daily rewards — the ${pctN(REWARDS.minRate)} club</b>`,
+    `• Every trading day at midnight New York, you earn a share of <b>${REWARDS.dailyPool.toLocaleString()} points</b> if your last `
+      + `${REWARDS.rollingDecisive} wins+losses are at least ${pctN(REWARDS.minRate)} wins (${Math.ceil(REWARDS.minRate * REWARDS.rollingDecisive)} of ${REWARDS.rollingDecisive}) `
+      + `and you made at least ${REWARDS.minCallsToday} calls that day.`,
+    '• The pool is split by that day\'s wins × your tier. Points nobody earns are burned. Keep qualifying to build a 🔥 streak.',
+    '',
+    '<b>Tiers</b> (each board separately)',
     `• <b>Qualify</b>: ${SCORING.qualifyMinDecisive}+ wins+losses and 90% statistical confidence you beat a coin flip. Luck doesn't qualify.`,
     '• <b>Tiers</b> on your hit rate (pulled toward 50% for small samples): ✅ BASE 55% 1× · 🎯 SHARP 60% 1.2× · 🐺 WOLF 70% 2×.',
-    `• <b>Points</b>: each win from the last ${SCORING.pointsDecayDays} days × your tier, fading to zero over ${SCORING.pointsDecayDays} days, best ${SCORING.winCap} count.`,
-    `• <b>Warmup</b>: your first ${SCORING.warmupDays} days build your record but earn no points.`,
     '• <b>Copying</b>: habitually opening the same trade minutes after someone else turns your copied wins into losses.',
     `• <b>Elimination</b>: after ${SCORING.elimMinDecisive}+ calls, a hit rate confidently below 45% removes you from the board.`,
     '',
@@ -104,7 +110,8 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     '/call — make a call (or <code>/call NVDA long 8h</code>)',
     '/mycalls — your recent calls',
     '/stats — your tier, points and progress',
-    '/leaderboard — top traders on each board',
+    '/leaderboard — daily rewards: the 65% club',
+    '/tiers — tiers on each board',
     '/board — stocks, bands and market hours',
     '/rules — how scoring works',
     '/name — change your leaderboard name',
@@ -123,11 +130,11 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       + `<b>Intraday</b> (${short('intraday')}) or <b>Swing</b> (${short('swing')}) board. That's it: two taps.\n\n`
       + 'Your tap locks the live price. The house sets take-profit and stop at the same distance, so every call is an equal test of skill.\n\n'
       + exampleLine(),
-    () => '<b>2/3 · How you\'re ranked</b>\n\n✅ take-profit first = win · ❌ stop first = loss · ➖ neither = wash\n\n'
-      + `After ${SCORING.qualifyMinDecisive}+ wins+losses, you qualify once we're 90% sure you beat a coin flip. `
-      + 'Then your hit rate sets a tier: ✅ BASE 55% · 🎯 SHARP 60% · 🐺 WOLF 70% (2× points).\n\n'
-      + `Points come from your last ${SCORING.pointsDecayDays} days of wins, so the board rewards current form. `
-      + `Your first ${SCORING.warmupDays} days are warmup: they build your record but don't earn points.`,
+    () => '<b>2/3 · How you earn</b>\n\n✅ take-profit first = win · ❌ stop first = loss · ➖ neither = wash (doesn\'t count)\n\n'
+      + `🏆 <b>Daily rewards:</b> keep your last ${REWARDS.rollingDecisive} wins+losses at <b>${pctN(REWARDS.minRate)} or better</b> `
+      + `and make ${REWARDS.minCallsToday}+ calls a day, and you share ${REWARDS.dailyPool.toLocaleString()} points every trading day. `
+      + 'Qualify day after day for a 🔥 streak.\n\n'
+      + 'Your hit rate also sets a tier that boosts your share: ✅ BASE 55% · 🎯 SHARP 60% · 🐺 WOLF 70% (2×).',
     () => '<b>3/3 · What your calls power</b>\n\nWhen several top-tier traders call the same stock the same way, an AI agent '
       + 'proposes that trade. A human confirms it, and it runs on a <b>Bitget demo account</b> (paper money).\n\n'
       + '• 🔒 Your open calls are sealed. Nobody can copy them live, and copying others doesn\'t pay.\n'
@@ -282,10 +289,25 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     const blocks = BOARD_IDS.map((b) => {
       const s = boardStats(db, b, now).get(t.id)!;
       const need = s.qualified ? '' : `\n   ${Math.max(0, SCORING.qualifyMinDecisive - s.decisive)} more wins+losses needed, then confidence above 50% (now ${pct(s.lb)})`;
-      return `<b>${BOARDS[b].title}</b>: ${statusLine(s)}\n   ${s.wins}W ${s.losses}L ${s.washes} wash · hit ${pct(s.hitRate)} · points ${s.points.toFixed(2)}`
+      return `<b>${BOARDS[b].title}</b>: ${statusLine(s)}\n   ${s.wins}W ${s.losses}L ${s.washes} wash · hit ${pct(s.hitRate)}`
         + (s.copier ? '\n   ⚠️ flagged as copier: copied wins count as losses' : '') + need;
     });
-    await ctx.reply(`<b>${esc(t.name)}</b>\n\n${blocks.join('\n\n')}`, HTML);
+    const p = todayProgress(db, t.id, now);
+    const me = rewardBoard(db, now).find((r) => r.trader_id === t.id);
+    const club = `🏆 <b>${pctN(REWARDS.minRate)} club</b> ${p.onTrack ? '— on track today ✅' : ''}\n`
+      + `   Last ${REWARDS.rollingDecisive}: ${p.wins}/${p.n} wins${p.n >= REWARDS.rollingDecisive ? ` (${pct(p.wins / p.n)}, need ${p.need})` : ` · ${REWARDS.rollingDecisive - p.n} more wins+losses to be counted`}\n`
+      + `   Today: ${p.calls}/${REWARDS.minCallsToday} calls · Points: ${(me?.points7d ?? 0).toFixed(0)} this week, ${(me?.pointsAll ?? 0).toFixed(0)} all-time`
+      + (me?.streak ? ` · 🔥${me.streak}` : '');
+    await ctx.reply(`<b>${esc(t.name)}</b>\n\n${club}\n\n${blocks.join('\n\n')}`, HTML);
+  }
+
+  async function showRewards(ctx: Context) {
+    const rows = rewardBoard(db).slice(0, 15);
+    if (!rows.length) return ctx.reply('No calls yet. Be the first!', { reply_markup: new InlineKeyboard().text('📈 Make a call', 'm:call') });
+    await ctx.reply(`🏆 <b>${pctN(REWARDS.minRate)} club · points this week</b>\n`
+      + rows.map((r, i) => `${i + 1}. ${esc(r.name)} — <b>${r.points7d.toFixed(0)}</b> pts${r.streak ? ` 🔥${r.streak}` : ''} · last 20: ${r.rolling}`).join('\n')
+      + `\n\nDaily pool ${REWARDS.dailyPool.toLocaleString()} pts, settled at midnight New York.`,
+      { ...HTML, reply_markup: new InlineKeyboard().text('Tiers by board', 'm:tiers') });
   }
 
   async function showLeaderboard(ctx: Context, only?: BoardId) {
@@ -293,7 +315,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       const rows = leaderboard(db, b).slice(0, 10);
       if (!rows.length) return `<b>${BOARDS[b].title}</b>\nNo calls yet.`;
       return `<b>${BOARDS[b].title}</b>\n` + rows.map((s, i) =>
-        `${i + 1}. ${s.tier ? TIER_BADGE[s.tier] : s.eliminated ? '⛔' : '·'} ${esc(s.name)} — ${s.points.toFixed(1)} pts · ${s.wins}W ${s.losses}L · ${pct(s.hitRate)}`).join('\n');
+        `${i + 1}. ${s.tier ? TIER_BADGE[s.tier] : s.eliminated ? '⛔' : '·'} ${esc(s.name)} — ${s.wins}W ${s.losses}L · ${pct(s.hitRate)}`).join('\n');
     });
     await ctx.reply(parts.join('\n\n') + '\n\n🐺 WOLF · 🎯 SHARP · ✅ BASE · · not qualified', HTML);
   }
@@ -335,15 +357,18 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   bot.command('stats', async (ctx) => { const t = await requireOnboarded(ctx); if (t) await showStats(ctx, t); });
   bot.command('leaderboard', (ctx) => {
     const a = ctx.match.trim().toLowerCase();
+    if (!a) return showRewards(ctx);
     return showLeaderboard(ctx, a.startsWith('i') || a === '2h' ? 'intraday' : a.startsWith('s') || a === '8h' ? 'swing' : undefined);
   });
+  bot.command('tiers', (ctx) => showLeaderboard(ctx));
   bot.command(['board', 'pairs'], showBoard);
 
   bot.callbackQuery(/^m:(\w+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const v = ctx.match[1];
     if (v === 'board') return showBoard(ctx);
-    if (v === 'leaderboard') return showLeaderboard(ctx);
+    if (v === 'leaderboard') return showRewards(ctx);
+    if (v === 'tiers') return showLeaderboard(ctx);
     if (v === 'rules') return ctx.reply(rulesText(), HTML);
     const t = await requireOnboarded(ctx);
     if (!t) return;
@@ -390,7 +415,8 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       { command: 'call', description: 'Call a stock: long or short, 2h or 8h' },
       { command: 'mycalls', description: 'Your recent calls' },
       { command: 'stats', description: 'Your tier, points and progress' },
-      { command: 'leaderboard', description: 'Top traders on each board' },
+      { command: 'leaderboard', description: 'Daily rewards leaderboard (65% club)' },
+      { command: 'tiers', description: 'Tiers on each board' },
       { command: 'board', description: 'Stocks, bands and market hours' },
       { command: 'rules', description: 'How scoring works' },
       { command: 'name', description: 'Change your leaderboard name' },
@@ -403,6 +429,14 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       const text = `${describeCall(c)}\n${BOARDS[c.board].title}: ${statusLine(s)} · ${s.wins}W ${s.losses}L · ${s.points.toFixed(2)} pts`
         + `\n🔓 Revealed: salt <code>${c.salt}</code> (hash <code>${c.commit_hash.slice(0, 12)}</code>)`;
       await bot.api.sendMessage(tg, text, { ...HTML, reply_markup: new InlineKeyboard().text('📈 Call again', 'm:call') }).catch(() => {});
+    },
+    async notifyReward(r: DailyReward) {
+      const tg = (db.prepare('SELECT tg_id FROM traders WHERE id = ?').get(r.trader_id) as { tg_id: string | null })?.tg_id;
+      if (!tg) return;
+      const text = r.eligible
+        ? `🏆 <b>${r.day}: you made the ${pctN(REWARDS.minRate)} club!</b>\n+${r.points.toFixed(0)} points · last ${r.rolling_n}: ${r.rolling_wins} wins · 🔥 streak ${r.streak}`
+        : `📅 ${r.day}: no reward today — ${esc(r.reason ?? '')}.\nKeep your last ${REWARDS.rollingDecisive} at ${pctN(REWARDS.minRate)}+ with ${REWARDS.minCallsToday}+ calls a day.`;
+      await bot.api.sendMessage(tg, text, { ...HTML, reply_markup: new InlineKeyboard().text('📈 Make a call', 'm:call').text('🏆 Leaderboard', 'm:leaderboard') }).catch(() => {});
     },
     async notifySignal(s: Signal, t: AgentTrade) {
       if (!adminId) return;

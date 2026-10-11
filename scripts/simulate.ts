@@ -16,6 +16,7 @@ import { allTickers, type Candle } from '../src/market.js';
 import { levels, pnlR, resolveBracket, type Bracket } from '../src/resolve.js';
 import { boardStats, leaderboard, type TraderStats } from '../src/scoring.js';
 import { crossesWeekend, sessionOpen } from '../src/sessions.js';
+import { rewardBoard, settleDue } from '../src/rewards.js';
 
 const arg = (k: string, d: number) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? Number(process.argv[i + 1]) : d; };
 const DAYS = arg('days', 21);
@@ -202,6 +203,22 @@ for (const p of PAIRS) for (const b of BOARD_IDS) {
 const lastPx = (pair: string) => m1.get(pair)!.at(-1)!.c;
 for (const p of PAIRS) db.prepare('INSERT OR REPLACE INTO quotes (pair, price, bid, ask, updated_at) VALUES (?, ?, ?, ?, ?)').run(p.symbol, lastPx(p.symbol), lastPx(p.symbol), lastPx(p.symbol), end);
 
+// Daily 65% club, settled exactly as live.
+const rewardRows = settleDue(db, end + D, 'us');
+const daysSettled = new Set(rewardRows.map((r) => r.day)).size;
+const rewardsBySkill = new Map<string, { traderDays: number; qualified: number; points: number }>();
+for (const r of rewardRows) {
+  const sk = traders.find((t) => t.id === r.trader_id)!.tier;
+  const x = rewardsBySkill.get(sk) ?? { traderDays: 0, qualified: 0, points: 0 };
+  x.traderDays++; x.qualified += r.eligible; x.points += r.points;
+  rewardsBySkill.set(sk, x);
+}
+const rewards = {
+  daysSettled,
+  bySkill: Object.fromEntries([...rewardsBySkill].map(([k, v]) => [k, { ...v, qualifyRate: +(v.qualified / v.traderDays).toFixed(3), points: Math.round(v.points) }])),
+  board: rewardBoard(db, end + D).slice(0, 15).map((r) => ({ ...r, skill: traders.find((t) => t.id === r.trader_id)!.tier })),
+};
+
 // ---------- results ----------
 const summarize = (name: string, board?: BoardId) => {
   const xs = trades.filter((x) => x.strategy === name && (!board || x.board === board)).sort((a, b) => a.t - b.t);
@@ -230,7 +247,7 @@ writeFileSync('results/backtest.json', JSON.stringify({
     + 'Costs: 2x taker fee + current spread. Ambiguous candles count as full losses for strategies.',
   period: { start, end, days: DAYS }, seed: arg('seed', 7),
   params: { BOARDS, BANDS, SCORING, CONSENSUS, AGENT: { maxOpen: AGENT.maxOpen, dailyLossLimitR: AGENT.dailyLossLimitR, maxCostR: AGENT.maxCostR } },
-  calls: nCalls, signals: nSignals, blocked, rejects: Object.fromEntries(rejects), strategies, byBoard, boards,
+  calls: nCalls, signals: nSignals, blocked, rewards, rejects: Object.fromEntries(rejects), strategies, byBoard, boards,
 }, null, 2));
 
 console.log(`\nSIMULATED replay: ${traders.length} traders, ${nCalls} calls, ${nSignals} consensus signals`);
@@ -239,4 +256,7 @@ for (const b of BOARD_IDS) {
   console.log(`\n${BOARDS[b].title} leaderboard (top 12)`);
   console.table(boards[b].slice(0, 12).map((r) => ({ ...r, hitRate: Number.isFinite(r.hitRate) ? (r.hitRate * 100).toFixed(0) + '%' : '-' })));
 }
+console.log(`\n65% club over ${daysSettled} trading days, by true skill:`);
+console.table(rewards.bySkill);
+console.table(rewards.board.slice(0, 10).map(({ trader_id, ...r }) => r));
 console.log('Agent blocked:', blocked, '\nRejected intents:', Object.fromEntries(rejects));

@@ -1,0 +1,11 @@
+
+> bellwether@1.0.0 start
+> tsx --no-warnings=ExperimentalWarning src/main.ts
+
+SESSION_MODE=always: market-hours calendar is OFF (demo mode).
+Calibrating house bands (first run fetches 30 days of 5m candles per stock)...
+Dashboard on http://localhost:8787  (simulated: /?db=sim)
+ADMIN_CHAT_ID not set: send /myid to the bot, put the number in .env, restart. Until then nobody can confirm agent trades.
+Bot @BellWetherCallsbot running · 15 stocks
+[bot] new trader @bernardblockchain (telegram id 6116660265) — set ADMIN_CHAT_ID to this id to make it the admin
+[bot] new trader @bernardonuh (telegram id 1531299562) — set ADMIN_CHAT_ID to this id to make it the admin
