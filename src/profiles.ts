@@ -18,8 +18,8 @@ export const resolvedCall = (c: CallRow) => ({
 export const sealedCall = (c: CallRow) => ({ id: c.id, board: BOARDS[c.board].title, lockedAt: c.locked_at, expiresAt: c.expires_at, hash: c.commit_hash, sealed: true });
 
 export function traderProfile(db: DB, id: number, now = Date.now()) {
-  const t = db.prepare('SELECT id, name, kind, created_at, first_call_at FROM traders WHERE id = ?').get(id) as
-    { id: number; name: string; kind: string; created_at: number; first_call_at: number | null } | undefined;
+  const t = db.prepare('SELECT id, name, kind, simulated, created_at, first_call_at FROM traders WHERE id = ?').get(id) as
+    { id: number; name: string; kind: string; simulated: number; created_at: number; first_call_at: number | null } | undefined;
   if (!t) return null;
   const lg = league(db, id, now).find((r) => r.me);
   const standing = rewardBoard(db, now).find((r) => r.trader_id === id);
@@ -33,7 +33,7 @@ export function traderProfile(db: DB, id: number, now = Date.now()) {
   const { n: total } = db.prepare("SELECT COUNT(*) AS n FROM calls WHERE trader_id = ? AND status != 'open'").get(id) as { n: number };
   const w = warmupStatus(db, id, now);
   return {
-    id: t.id, name: t.name, agent: t.kind === 'agent', joinedAt: t.created_at, firstCallAt: t.first_call_at,
+    id: t.id, name: t.name, agent: t.kind === 'agent', demo: !!t.simulated, joinedAt: t.created_at, firstCallAt: t.first_call_at,
     rank: lg?.rank ?? null, tier: lg?.tier ?? null, streak: standing?.streak ?? 0,
     points7d: standing?.points7d ?? 0, pointsAll: standing?.pointsAll ?? 0, last20: standing?.rolling ?? '0/0',
     warmup: { done: w.done, days: w.days, activeDays: w.activeDays, needDays: REWARDS.warmupDays, needActiveDays: REWARDS.warmupActiveDays },
@@ -52,9 +52,9 @@ export function traderHistory(db: DB, id: number, limit = 100, before?: number) 
 
 export function boardLeaderboard(db: DB, board: 'club' | BoardId, limit = 100, now = Date.now()) {
   if (board === 'club') return league(db, undefined, now).slice(0, limit).map(({ me, ...r }) => r);
-  const kinds = new Map((db.prepare('SELECT id, kind FROM traders').all() as { id: number; kind: string }[]).map((r) => [r.id, r.kind]));
+  const kinds = new Map((db.prepare('SELECT id, kind, simulated FROM traders').all() as { id: number; kind: string; simulated: number }[]).map((r) => [r.id, r]));
   return leaderboard(db, board, now).slice(0, limit).map((s, i) => ({
-    rank: i + 1, id: s.trader_id, name: s.name, agent: kinds.get(s.trader_id) === 'agent', tier: s.tier, status: s.status,
+    rank: i + 1, id: s.trader_id, name: s.name, agent: kinds.get(s.trader_id)?.kind === 'agent', demo: !!kinds.get(s.trader_id)?.simulated, tier: s.tier, status: s.status,
     wins: s.wins, losses: s.losses, washes: s.washes, hitRate: Number.isFinite(s.hitRate) ? s.hitRate : null, confidence: s.lb,
   }));
 }

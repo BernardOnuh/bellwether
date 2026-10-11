@@ -120,7 +120,7 @@ export function league(db: DB, meId?: number, now = Date.now()) {
   return rewardBoard(db, now).map((r, i) => {
     const w = warmupStatus(db, r.trader_id, now);
     return {
-      rank: i + 1, id: r.trader_id, name: r.name, agent: r.kind === 'agent', points7d: r.points7d, pointsAll: r.pointsAll,
+      rank: i + 1, id: r.trader_id, name: r.name, agent: r.kind === 'agent', demo: !!r.simulated, points7d: r.points7d, pointsAll: r.pointsAll,
       streak: r.streak, rolling: r.rolling, tier: tiers.get(r.trader_id) ?? null, warmup: !w.done, me: r.trader_id === meId,
     };
   });

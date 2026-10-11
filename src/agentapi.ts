@@ -38,11 +38,11 @@ const boardParam = (v: string | null): 'club' | BoardId | null => (!v || v === '
 function overview(db: DB) {
   const now = Date.now();
   const c = db.prepare(`SELECT COUNT(*) AS calls, SUM(status='win') AS pass, SUM(status='loss') AS failed, SUM(status='open') AS open FROM calls`).get() as Record<string, number | null>;
-  const p = db.prepare(`SELECT SUM(kind='human') AS humans, SUM(kind='agent') AS agents FROM traders WHERE first_call_at IS NOT NULL`).get() as Record<string, number | null>;
+  const p = db.prepare(`SELECT SUM(kind='human') AS humans, SUM(kind='agent') AS agents, SUM(simulated) AS demo FROM traders WHERE first_call_at IS NOT NULL`).get() as Record<string, number | null>;
   const decided = (c.pass ?? 0) + (c.failed ?? 0);
   return {
     session: { open: sessionOpen(now), line: sessionLine(now) },
-    stats: { players: p.humans ?? 0, agents: p.agents ?? 0, calls: c.calls ?? 0, open: c.open ?? 0, passRate: decided ? (c.pass ?? 0) / decided : null, stocks: PAIRS.length },
+    stats: { players: p.humans ?? 0, agents: p.agents ?? 0, demo: p.demo ?? 0, calls: c.calls ?? 0, open: c.open ?? 0, passRate: decided ? (c.pass ?? 0) / decided : null, stocks: PAIRS.length },
     leaderboard: boardLeaderboard(db, 'club', 10, now),
     bot: 'https://t.me/BellWetherCallsbot',
   };

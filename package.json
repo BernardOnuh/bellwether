@@ -9,7 +9,8 @@
     "paper:first": "tsx --no-warnings=ExperimentalWarning scripts/first-paper-trade.ts",
     "bands": "tsx --no-warnings=ExperimentalWarning scripts/bands.ts",
     "simulate": "tsx --no-warnings=ExperimentalWarning scripts/simulate.ts",
-    "headline": "tsx --no-warnings=ExperimentalWarning scripts/headline.ts"
+    "headline": "tsx --no-warnings=ExperimentalWarning scripts/headline.ts",
+    "seed:demo": "tsx --no-warnings=ExperimentalWarning scripts/seed-demo.ts"
   },
   "author": "",
   "license": "ISC",

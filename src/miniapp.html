@@ -85,6 +85,7 @@
   .t-BASE { background: var(--soft-2); color: var(--brand-2); }
   .t-rookie { background: var(--soft); color: var(--ink-2); }
   .t-warmup { background: var(--pass-bg); color: var(--pass); }
+  .t-demo { background: rgb(255 209 102 / .12); color: #ffd98a; }
 
   /* call button */
   .fab { position: fixed; left: 14px; right: 14px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 7; border: 0; border-radius: 20px; padding: 16px;
@@ -300,12 +301,12 @@ function leagueView() {
   const pod = (r, place) => r ? `<div class="pod ${place === 1 ? 'first' : ''} ${r.me ? 'me' : ''}" data-id="${r.id}">
       <div class="medal">${['🥇', '🥈', '🥉'][place - 1]}</div>${avatar(r)}
       <div class="nm">${esc(r.name)}</div><div class="pts num">${Math.round(r.points7d)} <small>pts</small></div>
-      <div>${tierChip(r.tier, r.warmup)}</div></div>`
+      <div>${tierChip(r.tier, r.warmup)}${r.demo ? ' <span class="tier t-demo">DEMO</span>' : ''}</div></div>`
     : `<div class="pod empty ${place === 1 ? 'first' : ''}"><div class="medal">${['🥇', '🥈', '🥉'][place - 1]}</div><div class="avatar" style="margin:6px auto;background:var(--soft)">?</div><div class="nm">Open spot</div></div>`;
   const rest = L.slice(3, 20);
   const meRow = L.find((r) => r.me);
   const row = (r) => `<div class="lrow ${r.me ? 'me' : ''}" data-id="${r.id}"><div class="rank">${r.rank}</div>${avatar(r)}
-      <div class="grow"><b>${esc(r.name)}${r.me ? ' · you' : ''}</b><span>${tierChip(r.tier, r.warmup)} · last 20 ${r.rolling}${r.streak ? ` · 🔥${r.streak}` : ''}</span></div>
+      <div class="grow"><b>${esc(r.name)}${r.me ? ' · you' : ''}</b><span>${tierChip(r.tier, r.warmup)}${r.demo ? ' <span class="tier t-demo">DEMO</span>' : ''} · last 20 ${r.rolling}${r.streak ? ` · 🔥${r.streak}` : ''}</span></div>
       <div class="pts num">${Math.round(r.points7d)}<small>pts</small></div></div>`;
   return `${playerCard()}<main>
     <h2>🏆 This week's League</h2>
@@ -411,7 +412,7 @@ async function openProfile(id) {
   try { p = await (await fetch(`/api/public/traders/${id}`)).json(); } catch { $('sheet').innerHTML = '<div class="grab"></div><div class="empty">Could not load this player.</div>'; return; }
   const res = (r) => r === 'NO RESULT' ? 'r-NO' : `r-${r}`;
   $('sheet').innerHTML = `<div class="grab"></div>
-    <div class="s-head">${avatar(p)}<div class="grow"><b style="font-size:20px">${esc(p.name)}</b><span>${tierChip(p.tier, !p.warmup.done)} ${p.rank ? `· #${p.rank} this week` : ''} ${p.streak ? `· 🔥${p.streak}` : ''}</span></div>
+    <div class="s-head">${avatar(p)}<div class="grow"><b style="font-size:20px">${esc(p.name)}</b><span>${tierChip(p.tier, !p.warmup.done)}${p.demo ? ' <span class="tier t-demo">DEMO</span>' : ''} ${p.rank ? `· #${p.rank} this week` : ''} ${p.streak ? `· 🔥${p.streak}` : ''}</span></div>
       <div class="pts num" style="font-size:20px">${p.last20}<small>last 20</small></div></div>
     <div class="kv"><div><span>Pts week</span>${Math.round(p.points7d)}</div><div><span>All-time</span>${Math.round(p.pointsAll)}</div><div><span>Live (sealed)</span>${p.open.length}</div></div>
     <h2 style="margin:6px 4px 8px">Recent calls</h2>
