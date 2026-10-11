@@ -9,6 +9,7 @@ import { crossesWeekend, sessionLine, sessionOpen } from './sessions.js';
 import type { Signal } from './consensus.js';
 import { rewardBoard, todayProgress, type DailyReward } from './rewards.js';
 import { MAX_AGENTS_PER_OWNER, createAgent, listAgents, revokeAgent } from './agents.js';
+import { activeDataKey, approveRequest, createRequest, denyRequest, revokeDataKey } from './access.js';
 
 const pctN = (x: number) => `${Math.round(x * 100)}%`;
 const pct = (x: number) => (Number.isFinite(x) ? `${(x * 100).toFixed(0)}%` : '–');
@@ -69,6 +70,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   const adminId = process.env.ADMIN_CHAT_ID;
   const isAdmin = (ctx: Context) => !!adminId && String(ctx.from?.id) === adminId;
   const awaitingName = new Set<string>();
+  const awaitingPurpose = new Set<string>();
 
   // ---------- trader records ----------
   const findTrader = (ctx: Context) =>
@@ -131,6 +133,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     '/rules — how scoring works',
     '/name — change your leaderboard name',
     '/apikey — let your own AI agent submit calls',
+    '/requestapi — request a data key for full trade histories',
   ].join('\n');
 
   function exampleLine() {
@@ -201,6 +204,8 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   bot.command('start', async (ctx) => {
     const t = getTrader(ctx);
     awaitingName.delete(String(ctx.from!.id));
+    if (ctx.match === 'api') return askPurpose(ctx);          // t.me/<bot>?start=api from the website
+    if (ctx.match === 'agent') return ctx.reply('🤖 Connect your AI agent: send <code>/apikey new my_agent</code> to get a key. Docs are on the website under Agents.', HTML);
     if (!t.onboarded_at) return startOnboarding(ctx, t);
     await ctx.reply(`Welcome back, <b>${esc(t.name)}</b>.\n${sessionLine(Date.now())}`, { ...HTML, reply_markup: menu() });
   });
@@ -270,6 +275,49 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       'Create one: <code>/apikey new my_bot</code>',
       'Revoke: <code>/apikey revoke my_bot</code>',
     ].join('\n'), HTML);
+  });
+
+  // ---------- data API access requests ----------
+  async function askPurpose(ctx: Context) {
+    const tg = String(ctx.from!.id);
+    const k = activeDataKey(db, tg);
+    if (k) return ctx.reply(`🔑 You already have a data key (<code>${k.prefix}…</code>). Lost it? <code>/requestapi revoke</code>, then request again.`, HTML);
+    awaitingPurpose.add(tg);
+    await ctx.reply('🔓 <b>Request API access</b>\n\nData keys unlock every trader\'s full call history (the website only shows the last 5).\n\n'
+      + 'In one message, tell us who you are and what you\'ll use it for:', { ...HTML, reply_markup: { force_reply: true } });
+  }
+  bot.command('requestapi', async (ctx) => {
+    const tg = String(ctx.from!.id), sub = ctx.match.trim().toLowerCase();
+    if (sub === 'status') {
+      const k = activeDataKey(db, tg);
+      const p = db.prepare("SELECT status, created_at FROM access_requests WHERE tg_id = ? ORDER BY id DESC").get(tg) as { status: string; created_at: number } | undefined;
+      return ctx.reply(k ? `🔑 Active data key <code>${k.prefix}…</code> since ${new Date(k.created_at).toISOString().slice(0, 10)}.`
+        : p ? `Your last request is <b>${p.status}</b>.` : 'No requests yet. Send /requestapi to ask.', HTML);
+    }
+    if (sub === 'revoke') return ctx.reply(revokeDataKey(db, tg) ? '✅ Data key revoked.' : 'You have no active data key.');
+    await askPurpose(ctx);
+  });
+  bot.callbackQuery(/^ar:(ok|no):(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx)) return ctx.answerCallbackQuery({ text: 'Admin only' });
+    await ctx.answerCallbackQuery();
+    const id = Number(ctx.match[2]);
+    if (ctx.match[1] === 'ok') {
+      const r = approveRequest(db, id);
+      if (!r) return ctx.editMessageText('Already decided.');
+      await ctx.editMessageText(`✅ Approved request #${id} from ${r.request.name}.`);
+      const base = (process.env.WEBAPP_URL || `http://localhost:${process.env.DASHBOARD_PORT ?? 8787}`).replace(/\/$/, '');
+      await bot.api.sendMessage(r.request.tg_id, [
+        '🎉 <b>API access approved!</b> Your data key (shown once, keep it secret):',
+        `<code>${r.key}</code>`, '',
+        `Full history of any trader:\n<code>curl ${base}/api/v1/traders/ID/calls -H "Authorization: Bearer ${r.key.slice(0, 11)}…"</code>`, '',
+        'Docs: the API page on the website. Revoke any time with /requestapi revoke.',
+      ].join('\n'), HTML).catch(() => {});
+    } else {
+      const r = denyRequest(db, id);
+      if (!r) return ctx.editMessageText('Already decided.');
+      await ctx.editMessageText(`✖️ Denied request #${id} from ${r.name}.`);
+      await bot.api.sendMessage(r.tg_id, 'Your API access request was not approved this time. You can still see each trader\'s last 5 calls on the website.').catch(() => {});
+    }
   });
 
   bot.command('help', (ctx) => ctx.reply(helpText, { ...HTML, reply_markup: menu() }));
@@ -468,6 +516,16 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   // Free text: a pending name, otherwise a nudge.
   bot.on('message:text', async (ctx) => {
     if (awaitingName.has(String(ctx.from.id))) return setName(ctx, ctx.message.text);
+    if (awaitingPurpose.has(String(ctx.from.id)) && !ctx.message.text.startsWith('/')) {
+      const t = getTrader(ctx);
+      const r = createRequest(db, String(ctx.from.id), t.name, ctx.message.text);
+      if ('error' in r) return ctx.reply(`🚫 ${esc(r.error)}`, HTML);
+      awaitingPurpose.delete(String(ctx.from.id));
+      await ctx.reply('📨 Request sent. You\'ll get your key here as soon as it\'s approved.');
+      if (adminId) await bot.api.sendMessage(adminId, `🔓 <b>API access request #${r.id}</b>\nFrom ${esc(r.name)} (tg ${r.tg_id})\n\n${esc(r.purpose)}`,
+        { ...HTML, reply_markup: new InlineKeyboard().text('✅ Approve', `ar:ok:${r.id}`).text('✖️ Deny', `ar:no:${r.id}`) }).catch(() => {});
+      return;
+    }
     if (ctx.message.text.startsWith('/')) return ctx.reply('Unknown command.\n\n' + helpText, HTML);
     const t = getTrader(ctx);
     if (!t.onboarded_at) return startOnboarding(ctx, t);
@@ -501,6 +559,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       { command: 'rules', description: 'How scoring works' },
       { command: 'name', description: 'Change your leaderboard name' },
       { command: 'apikey', description: 'API keys for your AI agents' },
+      { command: 'requestapi', description: 'Request full-history API access' },
       { command: 'help', description: 'All commands' },
     ],
     async notifyResolved(c: CallRow) {

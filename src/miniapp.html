@@ -9,45 +9,40 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  /* Bellwether League: light blue on white, game feel. */
+  /* Bellwether League: black + light blue, liquid glass. */
   :root {
-    color-scheme: light;
-    --page: #f4f9fe; --card: #ffffff; --line: #e1eef9; --soft: #eaf5fe; --soft-2: #d6ebfc;
-    --ink: #0b2540; --ink-2: #4a6580; --ink-3: #8aa0b5;
-    --brand: #2b8fdc; --brand-2: #1a6fb8; --brand-3: #7cc8f7; --on-brand: #ffffff;
-    --pass: #13a05a; --pass-bg: #e2f7ec; --fail: #e0453a; --fail-bg: #fde9e7; --wash: #7a8ea3; --wash-bg: #eef3f8;
-    --wolf-a: #5a5fe0; --wolf-b: #2b8fdc;
-    --shadow: 0 10px 30px rgb(26 111 184 / .10); --shadow-sm: 0 3px 10px rgb(26 111 184 / .08);
-    --hero: linear-gradient(150deg, #8fd0f8 0%, #2b8fdc 100%);
-  }
-  :root[data-theme="dark"] {
     color-scheme: dark;
-    --page: #07162a; --card: #0e2238; --line: #1a3550; --soft: #12304c; --soft-2: #18406a;
-    --ink: #eef6fd; --ink-2: #b2c7db; --ink-3: #7b94ab;
-    --brand: #4aa8ee; --brand-2: #8ccbf7; --brand-3: #2b8fdc; --on-brand: #06203a;
-    --pass: #44c983; --pass-bg: #0f3424; --fail: #ff7a6e; --fail-bg: #3b1a1c; --wash: #9db1c4; --wash-bg: #16293d;
-    --shadow: 0 10px 30px rgb(0 0 0 / .35); --shadow-sm: 0 3px 10px rgb(0 0 0 / .3);
-    --hero: linear-gradient(150deg, #2b8fdc 0%, #123d6b 100%);
+    --page: #04070c; --card: rgb(255 255 255 / .055); --line: rgb(124 200 247 / .16); --soft: rgb(124 200 247 / .10); --soft-2: rgb(124 200 247 / .18);
+    --ink: #eaf4ff; --ink-2: #a3b7cb; --ink-3: #6c8399;
+    --brand: #7cc8f7; --brand-2: #8fd3ff; --brand-3: #2b8fdc; --on-brand: #03121f;
+    --pass: #3ddc97; --pass-bg: rgb(61 220 151 / .13); --fail: #ff6b6b; --fail-bg: rgb(255 107 107 / .13); --wash: #8fa3b8; --wash-bg: rgb(255 255 255 / .06);
+    --wolf-a: #6b6ff0; --wolf-b: #4aa8ee;
+    --shadow: 0 20px 50px rgb(0 0 0 / .45); --shadow-sm: inset 0 1px 0 rgb(255 255 255 / .08), 0 8px 24px rgb(0 0 0 / .35);
+    --hero: linear-gradient(150deg, rgb(124 200 247 / .30) 0%, rgb(43 143 220 / .18) 45%, rgb(255 255 255 / .04) 100%);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: var(--page); color: var(--ink); font: 600 15px/1.4 Nunito, ui-rounded, "SF Pro Rounded", system-ui, sans-serif; }
+  html { background: var(--page); }
+  body::before { content: ""; position: fixed; inset: -20%; z-index: -1; background: radial-gradient(500px 400px at 15% 5%, rgb(74 168 238 / .35), transparent 60%), radial-gradient(420px 380px at 95% 35%, rgb(124 200 247 / .18), transparent 60%), radial-gradient(600px 500px at 40% 110%, rgb(27 95 158 / .35), transparent 60%); filter: blur(10px); }
+  html, body { margin: 0; color: var(--ink); font: 600 15px/1.4 Nunito, ui-rounded, "SF Pro Rounded", system-ui, sans-serif; }
   body { padding-bottom: calc(150px + env(safe-area-inset-bottom)); min-height: 100vh; }
   button { font-family: inherit; }
   .num { font-variant-numeric: tabular-nums; }
   main { padding: 0 14px; }
   h2 { font-size: 18px; font-weight: 900; margin: 18px 4px 10px; letter-spacing: -0.01em; }
   .muted { color: var(--ink-3); } .sub { color: var(--ink-2); font-size: 13px; }
+  .card, .lrow, .pod, .stock, .match, .tally div, .kv div, .pad, .live, .search, nav, .player, .sheet { backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); }
+  .card, .lrow, .pod, .stock, .match, .tally div, .pad { border: 1px solid var(--line); }
   .card { background: var(--card); border-radius: 22px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-sm); }
 
   /* top bar */
   .top { display: flex; align-items: center; gap: 8px; padding: 12px 16px 6px; }
-  .top img { width: 30px; height: 30px; }
+  .top img { width: 30px; height: 30px; filter: drop-shadow(0 0 10px rgb(74 168 238 / .6)); }
   .top b { font-size: 19px; font-weight: 900; letter-spacing: -0.02em; }
-  .live { margin-left: auto; font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow-sm); }
+  .live { margin-left: auto; font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); }
   .live.open { color: var(--pass); } .live.closed { color: var(--fail); }
 
   /* player card */
-  .player { margin: 8px 14px 4px; border-radius: 26px; padding: 18px; background: var(--hero); color: #fff; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+  .player { margin: 8px 14px 4px; border-radius: 26px; padding: 18px; background: var(--hero); border: 1px solid rgb(124 200 247 / .3); color: #fff; box-shadow: var(--shadow); position: relative; overflow: hidden; }
   .player::after { content: ""; position: absolute; right: -60px; top: -60px; width: 200px; height: 200px; border-radius: 50%; border: 28px solid rgb(255 255 255 / .12); }
   .p-row { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
   .avatar { width: 46px; height: 46px; border-radius: 16px; display: grid; place-items: center; font-weight: 900; font-size: 17px; flex: none; }
@@ -73,8 +68,7 @@
   .pod .nm { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pod .pts { font-size: 18px; font-weight: 900; color: var(--brand-2); text-align: center; }
   .pod .pts small { display: inline; font-size: 11px; color: var(--ink-3); font-weight: 700; }
-  .pod.first { padding-top: 18px; padding-bottom: 16px; background: linear-gradient(180deg, #fff6d6 0%, var(--card) 70%); }
-  :root[data-theme="dark"] .pod.first { background: linear-gradient(180deg, #3a3110 0%, var(--card) 70%); }
+  .pod.first { padding-top: 18px; padding-bottom: 16px; background: linear-gradient(180deg, rgb(255 209 102 / .16) 0%, var(--card) 70%); border-color: rgb(255 209 102 / .3); }
   .pod.me, .lrow.me { outline: 2.5px solid var(--brand); }
   .pod.empty { opacity: .55; }
 
@@ -87,18 +81,18 @@
   .pts { text-align: right; font-weight: 900; font-size: 16px; } .pts small { display: block; font-size: 11px; color: var(--ink-3); font-weight: 700; }
   .tier { display: inline-block; font-size: 11px; font-weight: 900; padding: 2px 8px; border-radius: 999px; letter-spacing: .02em; vertical-align: 1px; }
   .t-WOLF { background: linear-gradient(90deg, var(--wolf-a), var(--wolf-b)); color: #fff; }
-  .t-SHARP { background: var(--brand); color: var(--on-brand); }
+  .t-SHARP { background: #4aa8ee; color: var(--on-brand); }
   .t-BASE { background: var(--soft-2); color: var(--brand-2); }
   .t-rookie { background: var(--soft); color: var(--ink-2); }
   .t-warmup { background: var(--pass-bg); color: var(--pass); }
 
   /* call button */
   .fab { position: fixed; left: 14px; right: 14px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 7; border: 0; border-radius: 20px; padding: 16px;
-    background: var(--brand); color: var(--on-brand); font-size: 17px; font-weight: 900; box-shadow: 0 10px 24px rgb(43 143 220 / .35); }
+    background: linear-gradient(135deg, #a5dcff 0%, #7cc8f7 40%, #4aa8ee 100%); color: var(--on-brand); font-size: 17px; font-weight: 900; box-shadow: 0 10px 30px rgb(74 168 238 / .45), inset 0 1px 0 rgb(255 255 255 / .6); }
   .fab:active { transform: scale(.98); }
 
   /* nav */
-  nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--card); display: flex; padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px rgb(26 111 184 / .08); }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: rgb(8 14 22 / .78); border-top: 1px solid var(--line); display: flex; padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px rgb(26 111 184 / .08); }
   nav button { flex: 1; border: 0; background: transparent; color: var(--ink-3); font-size: 11px; font-weight: 800; padding: 6px 0; border-radius: 14px; }
   nav button i { display: block; font-style: normal; font-size: 21px; line-height: 1.25; }
   nav button.on { color: var(--brand-2); background: var(--soft); }
@@ -118,7 +112,7 @@
 
   /* sheet */
   .sheet-bg { position: fixed; inset: 0; background: rgb(7 22 42 / .4); z-index: 10; display: none; }
-  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: var(--page); border-radius: 28px 28px 0 0; padding: 14px 16px calc(20px + env(safe-area-inset-bottom));
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: rgb(8 14 22 / .92); border-top: 1px solid var(--line); border-radius: 28px 28px 0 0; padding: 14px 16px calc(20px + env(safe-area-inset-bottom));
     transform: translateY(105%); transition: transform .24s cubic-bezier(.2,.8,.2,1); max-height: 92vh; overflow: auto; }
   .sheet.on { transform: none; } .sheet-bg.on { display: block; }
   .grab { width: 44px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
@@ -130,7 +124,7 @@
   .pad span { display: block; font-size: 12px; color: var(--ink-2); }
   .pad.long b { color: var(--pass); } .pad.short b { color: var(--fail); }
   .pad.long.on { border-color: var(--pass); background: var(--pass-bg); } .pad.short.on { border-color: var(--fail); background: var(--fail-bg); }
-  .cta { width: 100%; border: 0; background: var(--brand); color: var(--on-brand); font-weight: 900; font-size: 17px; padding: 16px; border-radius: 18px; box-shadow: 0 10px 24px rgb(43 143 220 / .3); }
+  .cta { width: 100%; border: 0; background: linear-gradient(135deg, #a5dcff 0%, #7cc8f7 40%, #4aa8ee 100%); color: var(--on-brand); font-weight: 900; font-size: 17px; padding: 16px; border-radius: 18px; box-shadow: 0 10px 24px rgb(43 143 220 / .3); }
   .cta:disabled { opacity: .45; box-shadow: none; }
   .result { text-align: center; padding: 6px 4px 2px; position: relative; }
   .result .big { font-size: 34px; font-weight: 900; letter-spacing: .02em; margin: 4px 0 2px; }
@@ -154,13 +148,13 @@
   .bar { height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; margin-top: 10px; } .bar i { display: block; height: 100%; background: var(--brand); border-radius: 4px; }
 
   .empty { text-align: center; color: var(--ink-3); padding: 26px 10px; }
-  .intro { position: fixed; inset: 0; z-index: 20; background: var(--hero); color: #fff; display: none; flex-direction: column; padding: 40px 24px calc(24px + env(safe-area-inset-bottom)); }
+  .intro { position: fixed; inset: 0; z-index: 20; background: radial-gradient(600px 500px at 20% 10%, rgb(74 168 238 / .45), transparent 60%), #04070c; color: #fff; display: none; flex-direction: column; padding: 40px 24px calc(24px + env(safe-area-inset-bottom)); }
   .intro.on { display: flex; }
   .intro .emoji { font-size: 64px; }
   .intro h1 { font-size: 30px; font-weight: 900; margin: 14px 0 8px; letter-spacing: -0.02em; }
   .intro p { font-size: 16px; opacity: .95; }
   .intro .step { flex: 1; }
-  .intro .cta { background: #fff; color: var(--brand-2); }
+  .intro .cta { color: var(--on-brand); }
   .dots { display: flex; gap: 6px; justify-content: center; margin: 16px 0; } .dots i { width: 8px; height: 8px; border-radius: 4px; background: rgb(255 255 255 / .4); } .dots i.on { background: #fff; width: 22px; }
   .toast { position: fixed; left: 16px; right: 16px; top: 12px; z-index: 30; background: var(--ink); color: var(--card); padding: 12px 14px; border-radius: 14px; font-size: 14px; display: none; }
   .confetti { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
@@ -187,7 +181,7 @@
 <script>
 const tg = window.Telegram?.WebApp;
 const initData = tg?.initData || '';
-const setTheme = () => { document.documentElement.dataset.theme = tg?.colorScheme === 'dark' ? 'dark' : 'light'; };
+const setTheme = () => { try { tg?.setHeaderColor?.('#04070c'); tg?.setBackgroundColor?.('#04070c'); tg?.setBottomBarColor?.('#04070c'); } catch {} };
 if (tg) { tg.ready(); tg.expand(); setTheme(); tg.onEvent?.('themeChanged', setTheme); }
 const haptic = (k) => { try { k === 'ok' || k === 'err' ? tg.HapticFeedback.notificationOccurred(k === 'ok' ? 'success' : 'error') : tg.HapticFeedback.selectionChanged(); } catch {} };
 const $ = (id) => document.getElementById(id);
@@ -198,7 +192,7 @@ const pctR = (x) => x == null || isNaN(x) ? '–' : `${Math.round(x * 100)}%`;
 const until = (t) => { const m = Math.max(0, Math.round((t - Date.now()) / 60000)); const h = Math.floor(m / 60); return h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : h ? `${h}h ${m % 60}m` : `${m}m`; };
 const ny = (t) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' });
 const initials = (n) => n.replace(/^🤖\s*/, '').replace(/^@/, '').split(/[\s_.-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
-const TINTS = [['#e3f2fd', '#1a6fb8'], ['#e6ebff', '#3f5fd0'], ['#dff5f1', '#14857a'], ['#ecebff', '#5a5fe0'], ['#e3f4ff', '#2b8fdc']];
+const TINTS = [['rgb(124 200 247 / .14)', '#8fd3ff'], ['rgb(107 111 240 / .18)', '#b3b6ff'], ['rgb(61 220 151 / .14)', '#7ee8b8'], ['rgb(144 133 233 / .18)', '#c0b8ff'], ['rgb(74 168 238 / .18)', '#7cc8f7']];
 const avatar = (r) => {
   if (r.agent) return '<div class="avatar" style="background:var(--soft);font-size:22px">🤖</div>';
   let h = 0; for (const ch of r.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -264,6 +258,7 @@ function render() {
   document.body.style.paddingBottom = tab === 'trade' ? 'calc(90px + env(safe-area-inset-bottom))' : '';
   const v = $('view');
   v.innerHTML = tab === 'league' ? leagueView() : tab === 'trade' ? tradeView() : tab === 'calls' ? callsView() : meView();
+  v.querySelectorAll('[data-id]').forEach((el) => el.onclick = () => openProfile(el.dataset.id));
   if (tab === 'trade') {
     v.querySelectorAll('.seg button').forEach((b) => b.onclick = () => { group = b.dataset.g; haptic(); render(); });
     const s = v.querySelector('.search'); s.value = query; s.oninput = () => { query = s.value; renderGrid(); };
@@ -302,14 +297,14 @@ function playerCard() {
 // ---------- league ----------
 function leagueView() {
   const L = S.club, top = [L[1], L[0], L[2]];
-  const pod = (r, place) => r ? `<div class="pod ${place === 1 ? 'first' : ''} ${r.me ? 'me' : ''}">
+  const pod = (r, place) => r ? `<div class="pod ${place === 1 ? 'first' : ''} ${r.me ? 'me' : ''}" data-id="${r.id}">
       <div class="medal">${['🥇', '🥈', '🥉'][place - 1]}</div>${avatar(r)}
       <div class="nm">${esc(r.name)}</div><div class="pts num">${Math.round(r.points7d)} <small>pts</small></div>
       <div>${tierChip(r.tier, r.warmup)}</div></div>`
     : `<div class="pod empty ${place === 1 ? 'first' : ''}"><div class="medal">${['🥇', '🥈', '🥉'][place - 1]}</div><div class="avatar" style="margin:6px auto;background:var(--soft)">?</div><div class="nm">Open spot</div></div>`;
   const rest = L.slice(3, 20);
   const meRow = L.find((r) => r.me);
-  const row = (r) => `<div class="lrow ${r.me ? 'me' : ''}"><div class="rank">${r.rank}</div>${avatar(r)}
+  const row = (r) => `<div class="lrow ${r.me ? 'me' : ''}" data-id="${r.id}"><div class="rank">${r.rank}</div>${avatar(r)}
       <div class="grow"><b>${esc(r.name)}${r.me ? ' · you' : ''}</b><span>${tierChip(r.tier, r.warmup)} · last 20 ${r.rolling}${r.streak ? ` · 🔥${r.streak}` : ''}</span></div>
       <div class="pts num">${Math.round(r.points7d)}<small>pts</small></div></div>`;
   return `${playerCard()}<main>
@@ -406,6 +401,32 @@ async function lock() {
   } catch (e) { haptic('err'); drawSheet({ accepted: false, reason: e.message }); }
 }
 
+// ---------- player profile ----------
+async function openProfile(id) {
+  haptic();
+  pick = { profile: true };
+  $('sheet').innerHTML = '<div class="grab"></div><div class="empty">Loading…</div>';
+  $('sheet').classList.add('on'); $('sheet-bg').classList.add('on'); tg?.BackButton?.show();
+  let p;
+  try { p = await (await fetch(`/api/public/traders/${id}`)).json(); } catch { $('sheet').innerHTML = '<div class="grab"></div><div class="empty">Could not load this player.</div>'; return; }
+  const res = (r) => r === 'NO RESULT' ? 'r-NO' : `r-${r}`;
+  $('sheet').innerHTML = `<div class="grab"></div>
+    <div class="s-head">${avatar(p)}<div class="grow"><b style="font-size:20px">${esc(p.name)}</b><span>${tierChip(p.tier, !p.warmup.done)} ${p.rank ? `· #${p.rank} this week` : ''} ${p.streak ? `· 🔥${p.streak}` : ''}</span></div>
+      <div class="pts num" style="font-size:20px">${p.last20}<small>last 20</small></div></div>
+    <div class="kv"><div><span>Pts week</span>${Math.round(p.points7d)}</div><div><span>All-time</span>${Math.round(p.pointsAll)}</div><div><span>Live (sealed)</span>${p.open.length}</div></div>
+    <h2 style="margin:6px 4px 8px">Recent calls</h2>
+    ${p.recent.map((c) => `<div class="match ${c.result === 'NO RESULT' ? '' : c.result}"><div class="avatar" style="background:var(--soft);color:var(--brand-2);font-size:12px">${esc(c.symbol)}</div>
+      <div class="grow"><b>${c.direction === 'long' ? '⬆' : '⬇'} ${c.direction.toUpperCase()} · ${c.board}</b><span class="num">${px(c.entry)} → PASS ${px(c.target, c.entry)} · FAIL ${px(c.stop, c.entry)}</span></div>
+      <span class="res ${res(c.result)}">${c.result}</span></div>`).join('') || '<div class="card empty">No resolved calls yet.</div>'}
+    <div class="card" style="text-align:center;margin-top:6px">
+      <div style="font-size:28px">🔓</div>
+      <b style="font-size:16px">${p.moreAvailable ? `${p.resolvedTotal - p.recent.length} more calls in the full history` : 'Full call histories'}</b>
+      <p class="sub">Showing the last ${p.recentLimit}. Approved API users can read every resolved call of every player.</p>
+      <button class="cta" id="req-api">Request API access</button>
+    </div>`;
+  $('req-api').onclick = () => { haptic(); const u = 'https://t.me/BellWetherCallsbot?start=api'; tg?.openTelegramLink ? tg.openTelegramLink(u) : window.open(u); };
+}
+
 // ---------- calls ----------
 function callsView() {
   const C = S.calls;
@@ -441,7 +462,7 @@ function meView() {
     <div class="card sub">Tiers per board: ✅ BASE 55% · 🎯 SHARP 60% · 🐺 WOLF 70% (2× your share). Rename with /name in the bot.</div></main>`;
 }
 
-load().then(() => { const o = q0.get('open'); if (o && S) { openSheet(o); const d = q0.get('dir'); if (d) { pick.direction = d; drawSheet(); } } });
+load().then(() => { if (q0.get('profile') && S) openProfile(q0.get('profile')); const o = q0.get('open'); if (o && S) { openSheet(o); const d = q0.get('dir'); if (d) { pick.direction = d; drawSheet(); } } });
 setInterval(() => { if (!pick) load(); }, 15000);
 </script>
 </body>

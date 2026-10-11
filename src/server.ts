@@ -1,4 +1,4 @@
-// One-page dashboard: 65% club, tiers per board, sealed call feed, bands, consensus signals, agent trades, backtest headline.
+// Website (src/site.html: home, leaderboard, trader profiles, agents, API docs, research), Mini App (/app) and APIs.
 // GET /?db=sim shows the simulated replay; default is the live database.
 import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
@@ -67,8 +67,8 @@ export function startDashboard(port: number) {
         return res.end(readFileSync(file));
       }
       if (url.pathname === '/') {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-        return res.end(readFileSync(new URL('./dashboard.html', import.meta.url)));
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+        return res.end(readFileSync(new URL('./site.html', import.meta.url)));
       }
       res.writeHead(404).end();
     } catch (e) {

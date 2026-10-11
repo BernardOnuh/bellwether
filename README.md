@@ -64,6 +64,16 @@ The pool is split by that day's wins × tier multiplier. Points nobody earns are
 
 Why a rolling 20 rather than "65% today": with 5 decided calls a day, a coin-flipper hits 65% on about 1 day in 5, while a trader who really is 65% misses it about half the time. On the rolling-20 rule, a coin-flipper qualifies on about 13% of days and a real 65% trader on about 60%.
 
+## Website
+
+`http://localhost:8787` (or the public `WEBAPP_URL`) serves the Bellwether site in black and light blue with a liquid-glass look:
+- **Home:** a hero with **Join on Telegram** and **Connect your agent**, live stats, the week's leaderboard podium, how it works, and an agent teaser.
+- **Leaderboard:** the 65% club, plus each board (HT/LT/D1/D2), with search.
+- **Trader profile** (`#/trader/:id`): tier, rank, streak and 65% ring, per-board stats, the **last 5 resolved calls**, and sealed live calls. Full histories sit behind **Request API access**.
+- **Agents:** a three-step quickstart with cURL, Python and JavaScript examples, and the rules.
+- **API:** the three access levels, the endpoint reference, and how to verify a call's hash.
+- **Research:** the replay chart (average R by board and strategy), bands, consensus signals and the house agent's paper trades.
+
 ## Three ways to play
 
 1. **Telegram bot.** Type `META long LT` or tap through the buttons. You get ✅ ACCEPTED immediately, then ✅ PASS / ❌ FAILED when the call resolves.
@@ -130,7 +140,7 @@ npm run simulate         # SIMULATED replay → data/sim.db + results/backtest.j
 - `SESSION_MODE=always` turns the market-hours calendar off for weekend demos. The bot shows "Demo mode" while it's on.
 - `CONSENSUS_MIN_TRADERS` (default 2) can be raised as the crowd grows.
 
-**Bot commands:** `/apikey` (AI agents) · `/pairs` · `/call` (or `/call NVDA long LT`, `/call ORCL short D2`) · `/mycalls` · `/stats` · `/leaderboard` (65% club) · `/tiers` · `/rules` · `/name` · `/myid`. Admin only: `/agent` · `/kill` · `/resume` · Confirm/Reject on proposals.
+**Bot commands:** `/apikey` (AI agents) · `/requestapi` (data access) · `/pairs` · `/call` (or `/call NVDA long LT`, `/call ORCL short D2`) · `/mycalls` · `/stats` · `/leaderboard` (65% club) · `/tiers` · `/rules` · `/name` · `/myid`. Admin only: `/agent` · `/kill` · `/resume` · Confirm/Reject on proposals.
 
 ## Real vs simulated
 
@@ -167,7 +177,7 @@ What this shows, honestly:
 
 ## Brand
 
-Light blue on white. Assets live in `assets/brand/`:
+Black and light blue, with a liquid-glass look (frosted translucent cards over glowing blue light). Assets live in `assets/brand/`:
 - `logo.svg`, `logo-640.png`: the app icon, a white bell with a rising line on a light-blue tile.
 - `telegram-profile-640.png`: the bot profile picture.
 - `banner-640x360.png`: the bot description picture.
@@ -177,7 +187,7 @@ Light blue on white. Assets live in `assets/brand/`:
 |---|---|---|
 | Brand blue | `#2b8fdc` | `#4aa8ee` |
 | Ink | `#0b2540` | `#eef6fd` |
-| Surface / page | `#ffffff` / `#f2f8fd` | `#0f2236` / `#08182a` |
+| Surface / page | glass `rgb(255 255 255 / .05)` on `#04070c` | same |
 | Chart series (tiered · consensus · everyone) | `#1f86d6` `#eb6834` `#6250d6` | `#3a97e0` `#d95926` `#9085e9` |
 
 The chart series pass colour-blind separation and contrast checks on both surfaces.
