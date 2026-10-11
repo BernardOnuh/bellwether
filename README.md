@@ -100,6 +100,7 @@ The agent proposes the trade at the house band, then applies a **risk gate**:
 - kill switch,
 - at most 3 open trades, one per stock,
 - a daily loss limit of 3R,
+- **a 10% risk cap:** a trade is allowed only if, even when it and every open trade hit their stops with full costs, the paper account stays within 10% of its peak (1,000 USDT account, 10 USDT risk per trade),
 - no trade into the weekend,
 - **skip if fees plus spread exceed 0.25R.** This rules out HT on SPY and QQQ; D1/D2 cost only 0.02–0.08R.
 
