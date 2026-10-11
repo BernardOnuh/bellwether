@@ -1,101 +1,155 @@
 # Bellwether
 
-Traders make simple directional calls in Telegram. The system scores every call against real Bitget prices, ranks traders on a shrunk hit rate that can't be gamed, and looks for moments when the best-ranked traders agree. When they do, an agent proposes a trade, checks it against a risk gate, and sends it to Bitget's **demo** environment after a human taps Confirm.
+**Call US stocks on Bitget. Earn your tier. Lead the agent.**
 
-Submitted under **AI Trading Desk**. The AI cleans, scores, and builds consensus; humans make the calls and confirm every trade.
+Bellwether is a Telegram game for calling US stocks, graded against live prices on Bitget's stock perpetuals. Traders pick a stock and tap Long or Short; the house sets the take-profit, stop and expiry. Every call is graded against live Bitget prices. Traders who keep a 65% win rate share a daily points pool. When several top-tier callers agree, an AI agent proposes the trade, a human confirms it, and it runs on a Bitget **demo** account.
 
-## Call rules
+Submitted under **AI Trading Desk**: humans make the calls and confirm every trade; the AI grades, ranks, detects copying, builds consensus and manages risk.
 
-A trader picks only the **pair**, the **direction**, and a **distance** in price points. The bot sets the rest:
+The design follows the fixed-band, confidence-gated scoring of Infinite Quant's Signals Program (Bittensor SN89), adapted to Bitget stock perps, US market hours and a daily 65% reward.
 
-| | |
-|---|---|
-| Entry | Mid price at the moment the trader taps **Lock**, stamped with Bitget's server time |
-| Target | Entry ± distance, in the called direction |
-| Stop | The same distance against the call (1:1, so the breakeven hit rate is 50% before costs) |
-| Expiry | 30 min if the pair's trailing 24h realized vol ≥ 1.5%/day, otherwise 8 h |
+## How a call works
 
-**Outcomes** are resolved on 1-minute candles. A **win** means the target was hit first, and a **loss** means the stop was hit first. A **wash** means neither was hit by expiry, or both were hit inside the same 1-minute candle, where the order can't be known. Washes are excluded from the hit rate.
+1. **Pick a stock, then tap a button.** For example `⬆️ Long LT ±1.13%`. The tap locks the call at the live Bitget mid price, stamped with Bitget's server time. There are no take-backs.
+2. **The house sets the bracket.** Take-profit and stop sit at the same distance from entry (1:1), sized per stock and board: the median move over that board's horizon in the last 30 days, recalibrated daily. Each call freezes the band in force when it was locked.
+3. **Grading on 1-minute candles.**
+   - ✅ **Win**: take-profit touched first.
+   - ❌ **Loss**: stop touched first.
+   - ➖ **Wash**: neither by expiry, or both inside the same minute (the order can't be known). Washes don't count toward hit rate.
 
-**Ranking:** `(wins + 5) / (wins + losses + 10)`. A trader needs 10 wins plus losses to qualify.
+### Boards
 
-**Loopholes closed**
+| Board | Expiry | Stocks | Limits |
+|---|---|---|---|
+| **HT** | 2 hours | 15 liquid: NVDA TSLA AAPL MSFT AMZN GOOGL META AMD MU AVGO PLTR MSTR COIN QQQ SPY | 10/day, 10 min apart |
+| **LT** | 8 hours | same 15 | 3/day, 1 h apart |
+| **D1** | 24 hours | 15 long-term: INTC ORCL NFLX TSM ARM DELL QCOM MRVL SMCI CRWD AMAT DDOG NKE BABA RKLB | 2/day, 2 h apart |
+| **D2** | 48 hours | same 15 | 1/day |
 
-- *Huge targets that never resolve:* distances must sit within 0.5x–1.5x of the pair's typical move for its window. The typical move is the median of `max(high − open, open − low)` per window over the trailing 7 days. A wash rate more than 10 points above the crowd's own wash rate also lowers rank.
-- *Tiny targets that are just noise:* the minimum distance is 3x the round-trip cost (2 × taker fee + spread).
-- *Hedging and spam:* one open call per pair per trader, and 10 calls per day.
-- *Stale or closed markets:* a call is rejected when the ticker is stale, or when 80% of the last 30 one-minute candles had no volume.
+- **Hours:** calls open Monday–Friday, 04:00–16:00 New York time. On Bitget, NVDA's perp trades about $23k a minute in pre-market and regular hours, a third of that overnight, and 54% of weekend minutes have no trades.
+- **No weekend holds:** no call may still be running after Friday 20:00 New York time, so D1 calls close Thursday and D2 calls close Wednesday.
+- **Listing rule:** a stock is listed on a board only if its band is at least 8× its spread.
+- **One open call per stock per board.**
+
+## Scoring
+
+Each board is scored separately.
+
+- **Qualify:** at least 8 wins+losses, and the Wilson lower bound on hit rate (z = 1.28, about 90% one-sided) is at least 50%. Luck doesn't qualify.
+- **Tiers:** set on a hit rate shrunk toward 50% with a Beta(6,6) prior.
+
+  | Tier | Shrunk hit rate | Multiplier |
+  |---|---|---|
+  | ✅ BASE | 55% | 1× |
+  | 🎯 SHARP | 60% | 1.2× |
+  | 🐺 WOLF | 70% | 2× |
+
+- **Elimination:** after 40+ decisive calls, a lifetime Wilson upper bound below 45% removes the trader.
+- **Copy penalty:** every call records whether it landed second, within 15 minutes, on a trade someone else already had open.
+  - A trader who shadows **one** established leader (8+ copies of that leader, at least half of their decided calls) is flagged.
+  - A flagged trader's copied wins count as losses.
+  - Agreeing with different people in a busy moment never flags.
+- **Sealed calls:** while a call is open, others see only `sha256(trader, board, stock, direction, entry, band, time, salt)`. The salt is revealed when the call resolves, so anyone can check that nothing changed.
+
+### 🏆 Daily rewards: the 65% club
+
+Every New York trading day at 00:05, after that day's LT calls have resolved, a trader earns a share of **1,000 points** if:
+- their last 20 wins+losses, across all boards, are at least 65% wins (13 of 20),
+- they made at least 2 calls that day,
+- they aren't flagged as a copier or eliminated.
+
+The pool is split by that day's wins × tier multiplier. Points nobody earns are burned. Consecutive qualifying days build a 🔥 streak.
+
+Why a rolling 20 rather than "65% today": with 5 decided calls a day, a coin-flipper hits 65% on about 1 day in 5, while a trader who really is 65% misses it about half the time. On the rolling-20 rule, a coin-flipper qualifies on about 13% of days and a real 65% trader on about 60%.
+
+## The agent
+
+When qualified traders agree on a stock, board and direction, a **consensus signal** is raised.
+- **Agreement:** at least 2 qualified traders within a quarter of the horizon, carrying at least 70% of the weighted vote. Each trader's weight is their shrunk hit rate minus 0.5.
+- **Who can vote:** copiers and eliminated traders get no vote.
+
+The agent proposes the trade at the house band, then applies a **risk gate**:
+- kill switch,
+- at most 3 open trades, one per stock,
+- a daily loss limit of 3R,
+- no trade into the weekend,
+- **skip if fees plus spread exceed 0.25R.** This rules out HT on SPY and QQQ; D1/D2 cost only 0.02–0.08R.
+
+The admin taps **Confirm** in Telegram, and the order goes to Bitget's demo environment through `bgc order … --paper-trading`, with take-profit and stop preset on the exchange and a flatten at expiry. There is **no live-trading code path**. Every `bgc` invocation, including dry runs and failures, is written to the `paper_log` table.
 
 ## Architecture
 
 ```
-Telegram (/call → pair → direction → distance → Lock)
+Telegram (two taps: stock → Long/Short on a board)
    │
-   ▼
-calls.ts ── rule checks, entry lock at server time ──► SQLite (data/live.db)
-   ▲                                                     │
-profile.ts  every 5 min: realized vol → window,          │
-            typical move → distance band                 │
-                                                         ▼
-resolve.ts  every 20 s: 1m candles → win / loss / wash ──► scoring.ts (shrunk hit rate, wash penalty)
-                                                         │
-consensus.ts  qualified traders, same pair + side within ⅓ window,
-              weight = rank − 0.5, clones collapsed, ≥3 traders, ≥70% weight
-                                                         │
-agent.ts  risk gate (kill switch, max 3 open, 1 per pair, −3R daily stop)
-          → Telegram Confirm → executor.ts → `bgc order … --paper-trading`
-          → TP/SL preset on the exchange, flatten at expiry
-                                                         │
-server.ts  dashboard: leaderboard, call feed, signals, agent trades, headline chart
+calls.ts    rules: session, weekend, board, caps, gaps · lock at Bitget mid · seal (sha256) · record copy leader
+   │                                                              ▲
+bands.ts    daily: 30d of 5m candles → median move per board ─────┘   quotes every 30 s
+   │
+resolve.ts  every 20 s: 1m candles → win / loss / wash
+   │
+scoring.ts  Wilson gate · shrunk tiers · elimination · copier detection (per leader)
+rewards.ts  00:05 NY: 65% club on rolling 20 · 1,000-pt pool by wins × tier · streaks
+consensus.ts  qualified agreement → signal
+agent.ts    risk gate → Telegram Confirm → executor.ts → bgc --paper-trading
+server.ts   dashboard (http://localhost:8787, ?db=sim for the replay)
 ```
 
-- **Market data:** Bitget v3 public REST (`/api/v3/market/*`), USDT perpetuals. The stock pairs (NVDA, TSLA, MSTR) are Bitget's RWA perps. The tokenized spot stocks trade too thinly to score calls against.
-- **Execution:** Bitget Agent Hub's `bgc` CLI (`@bitget-ai/bitget-agent-cli`), always run with `--paper-trading`. There is no live-trading code path. Every invocation, including dry runs and failures, is written to the `paper_log` table.
-- **Pairs:** BTC, ETH, SOL, XRP, DOGE, NVDA, TSLA, MSTR (all `…USDT` perps).
+Market data comes from the Bitget v3 public REST API (USDT-FUTURES, RWA stock perps). Storage is SQLite (`node:sqlite`). The code is TypeScript on Node 24, and the bot uses grammY.
 
 ## Running it
 
 ```bash
 npm install
-cp .env.example .env            # Telegram token, your Telegram id, Bitget DEMO key
-npm test                        # resolver + scoring unit tests
-npm run profiles                # live volatility class and distance band per pair
-npm run paper:first             # dry-run one demo order; add -- --send to place it
-npm start                       # bot + resolver + consensus agent + dashboard (http://localhost:8787)
-npm run simulate                # SIMULATED replay → data/sim.db + results/backtest.json
+cp .env.example .env     # TELEGRAM_BOT_TOKEN, ADMIN_CHAT_ID, Bitget DEMO key
+npm test                 # resolver, scoring, sessions, rewards, copy detection, bot flows
+npm run bands            # calibrate and print every stock's bands
+npm run paper:first      # dry-run one demo order; add -- --send to place it
+npm start                # bot + engine + agent + dashboard
+npm run simulate         # SIMULATED replay → data/sim.db + results/backtest.json
 ```
 
-Telegram commands: `/call` (or `/call BTC long 600`), `/mycalls`, `/stats`, `/leaderboard`, `/pairs`, `/rules`. Admin-only: `/agent`, `/kill`, `/resume`, plus Confirm/Reject buttons on agent proposals.
+- `SESSION_MODE=always` turns the market-hours calendar off for weekend demos. The bot shows "Demo mode" while it's on.
+- `CONSENSUS_MIN_TRADERS` (default 2) can be raised as the crowd grows.
+
+**Bot commands:** `/pairs` · `/call` (or `/call NVDA long LT`, `/call ORCL short D2`) · `/mycalls` · `/stats` · `/leaderboard` (65% club) · `/tiers` · `/rules` · `/name` · `/myid`. Admin only: `/agent` · `/kill` · `/resume` · Confirm/Reject on proposals.
 
 ## Real vs simulated
 
 | Real | Simulated |
 |---|---|
-| Bitget prices, candles, fees, spreads | The 30 traders in `data/sim.db` (named `sim_trader_NN`) |
-| Live calls placed through the Telegram bot | Their "skill": with probability *edge* a sim trader peeks at which side hits first |
-| Agent orders on the Bitget demo account (`paper_log`) | Their call timing, clustered around random "moments" per pair |
-| | The headline chart and `results/backtest.json` |
+| Bitget prices, candles, fees, spreads, instrument rules | The 28 traders in `data/sim.db` (named `sim_trader_NN`) |
+| House bands from real 30-day history | Their "skill": with probability *edge*, a sim trader peeks at which side hits first |
+| Live calls placed through the Telegram bot | Call timing, clustered around random "moments" per stock |
+| Agent orders on the Bitget demo account (`paper_log`) | `results/backtest.json` and the dashboard's replay view |
 
 The dashboard labels the simulated view, and every simulated row carries `simulated = 1`.
 
-## Results so far (SIMULATED, 7 days, 2026-10-03 → 2026-10-10, seed 42)
+## Results (SIMULATED: 21 days, Sep 20 – Oct 11 2026, 30 stocks, 2,682 calls, seed 7)
 
-| Strategy | Trades | Hit rate | Washes | Avg R / trade (after costs) |
-|---|---|---|---|---|
-| Agent following top-ranked consensus | 31 | 61.5% | 58% | −0.32 |
-| Follow top-5 ranked traders individually | 233 | 56.7% | 55% | −0.24 |
-| Follow everyone | 2,218 | 54.1% | 61% | −0.23 |
+Average R per trade after fees and spread (1R = the band):
+
+| Board | Follow everyone | Follow tiered callers | Agent on consensus |
+|---|---|---|---|
+| HT (2h) | −0.166R · 1,206 trades · 56.5% hit | −0.006R · 166 trades · 72.0% hit | +0.338R · 9 trades · 5W 0L |
+| LT (8h) | −0.040R · 904 trades · 54.7% hit | **+0.047R** · 74 trades · 66.7% hit | +0.033R · 6 trades · 3W 2L |
+| D1 (24h) | −0.089R · 375 trades | no one qualified yet | – |
+| D2 (48h) | +0.076R · 197 trades | no one qualified yet | – |
+
+Daily rewards over 15 trading days:
+- **Who earned:** the sharp and good sim traders took 70% of the points. They qualified on 47% and 36% of their trading days; coin-flippers on 8%.
+- **Copiers:** both were flagged and earned 0.
+- **Agent:** the risk gate skipped 5 consensus signals on cost grounds and 2 because the stock was already held.
 
 What this shows, honestly:
+1. **Ranking finds skill, and fees decide profit.** Selecting tiered callers lifts the hit rate from about 55% to 67–72%. On HT, that's still only breakeven, because round-trip fees take about 0.2R. On LT it turns positive.
+2. **The consensus agent's sample is tiny** (15 trades). It points the right way but proves nothing yet.
+3. **D1/D2 need time.** At 1–2 calls a day, nobody reaches 8 decided calls in 21 days. Those boards matter for a real launch, not this replay.
+4. **The skill is invented.** These numbers show the machinery working, not that real crowds have an edge. Real calls through the bot are what matter.
 
-1. **Ranking finds skill.** The three "sharp" sim traders rank 1st, 4th, and 16th. The two wash-gamers and two "faders" end up in the bottom ten.
-2. **Consensus raises the hit rate** from 54% to 61.5%, but the sample is small (13 decided trades).
-3. **Costs win anyway.** With taker fees of 0.06% per side plus spread, a 30-minute bracket on SOL or DOGE pays about a third of R in costs. Washes, which are about 55–60% of 1:1 brackets by construction, still pay the full cost. No strategy here is profitable after costs.
-4. **The skill in this replay is invented**, so these numbers show that the plumbing works, not that real crowds have edge. Real call data is what matters.
+## Known gaps
 
-Levers that this data points to, not yet built: maker entries, trading only the 8h pairs, or a narrower band (e.g. 0.3x–1.0x) to cut washes.
-
-## Open questions
-
-- Will the hackathon accept a short paper-trading log under AI Trading Desk?
-- Bitget's demo environment for stock perps (NVDA/TSLA/MSTR) is untested until a demo key is in place.
+- No US holiday calendar; weekends only.
+- The Bitget demo environment for stock perps hasn't been confirmed end to end yet; it needs a demo API key.
+- Trader profiles and trade reasons use templates; an LLM writer isn't built.
+- Points aren't redeemable for anything yet.

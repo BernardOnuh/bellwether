@@ -9,63 +9,71 @@
     color-scheme: light;
     --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #e2e1dc;
     --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #8a8984;
-    --grid: #ecebe7;
+    --grid: #ecebe7; --axis: #b9b8b2;
     --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
     --good: #0b7a3e; --bad: #c0362c; --warn-bg: #fff4d6; --warn-text: #6b4a00;
+    --chip: #ecebe7;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
       --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2d2b;
       --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e87;
-      --grid: #262624;
+      --grid: #262624; --axis: #4a4945;
       --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
       --good: #4cc27f; --bad: #f07368; --warn-bg: #3a2f10; --warn-text: #f3d48a;
+      --chip: #262624;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
     --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2d2b;
     --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e87;
-    --grid: #262624;
+    --grid: #262624; --axis: #4a4945;
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
     --good: #4cc27f; --bad: #f07368; --warn-bg: #3a2f10; --warn-text: #f3d48a;
+    --chip: #262624;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--surface-0); color: var(--text-primary);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
-  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 16px; }
-  h1 { font-size: 20px; margin: 0; }
-  h2 { font-size: 15px; margin: 0 0 10px; }
+  main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 12px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0 0 4px; }
   .sub { color: var(--text-secondary); font-size: 13px; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .seg button { border: 0; background: var(--surface-1); color: var(--text-secondary); padding: 6px 12px; font: inherit; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+  .session { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
   .banner { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; font-size: 13px; }
-  .grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); align-items: start; }
   .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
-  .span-12 { grid-column: span 12; } .span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; }
-  @media (max-width: 860px) { .span-7, .span-5, .span-6 { grid-column: span 12; } }
+  .span-12 { grid-column: span 12; } .span-7 { grid-column: span 7; } .span-5 { grid-column: span 5; }
+  @media (max-width: 900px) { .span-7, .span-5 { grid-column: span 12; } }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
   .tile .k { color: var(--text-secondary); font-size: 12px; }
   .tile .v { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
   th { color: var(--text-secondary); font-weight: 500; font-size: 12px; }
   td.num, th.num { text-align: right; }
   .scroll { overflow-x: auto; }
   .pos { color: var(--good); } .neg { color: var(--bad); } .muted { color: var(--text-muted); }
-  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); }
-  .chart-wrap { position: relative; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: var(--chip); color: var(--text-secondary); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .tabs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); border-radius: 999px; padding: 3px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .tabs button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+  .chart-wrap { position: relative; margin-top: 8px; }
   svg text { fill: var(--text-secondary); font-size: 11px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 8px; font-size: 13px; color: var(--text-secondary); }
-  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 0; font-size: 13px; color: var(--text-secondary); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
   .tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .12); display: none; min-width: 170px; }
+    padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .12); display: none; min-width: 180px; z-index: 2; }
   .tip .row { display: flex; justify-content: space-between; gap: 12px; }
-  .tip i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
   details summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; margin-top: 8px; }
+  .group-h { font-size: 12px; color: var(--text-secondary); margin: 12px 0 0; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -73,46 +81,70 @@
   <header>
     <div>
       <h1>Bellwether</h1>
-      <div class="sub">Human calls → shrunk hit-rate ranking → consensus → risk-gated agent trades on Bitget demo</div>
+      <div class="sub">Call US stocks on Bitget · earn your tier · the best callers lead the agent</div>
     </div>
     <div class="seg" role="group" aria-label="Data source">
       <button data-db="live">Live</button><button data-db="sim">Simulated replay</button>
     </div>
   </header>
+  <div class="session" id="session"></div>
   <div id="banner"></div>
 
   <div class="grid">
     <section class="card span-12"><div class="tiles" id="tiles"></div></section>
 
     <section class="card span-12">
-      <h2>Headline: does following the crowd's best beat following everyone?</h2>
+      <h2>Headline: does following ranked callers beat following everyone?</h2>
       <div class="sub" id="bt-sub"></div>
       <div class="legend" id="legend"></div>
-      <div class="chart-wrap" id="chart-wrap"><svg id="chart" width="100%" height="320" role="img" aria-label="Cumulative R after costs by strategy"></svg><div class="tip" id="tip"></div></div>
+      <div class="chart-wrap" id="chart-wrap"><svg id="chart" width="100%" height="300" role="img" aria-label="Average R per trade after costs, by board and strategy"></svg><div class="tip" id="tip"></div></div>
       <details><summary>Table view</summary><div class="scroll"><table id="bt-table"></table></div></details>
     </section>
 
-    <section class="card span-7"><h2>Leaderboard</h2><div class="scroll"><table id="board"></table></div></section>
-    <section class="card span-5"><h2>Pairs</h2><div class="scroll"><table id="pairs"></table></div></section>
-    <section class="card span-7"><h2>Call feed</h2><div class="scroll"><table id="calls"></table></div></section>
+    <section class="card span-7">
+      <h2>🏆 65% club</h2>
+      <div class="sub" id="club-sub"></div>
+      <div class="scroll"><table id="club"></table></div>
+    </section>
+    <section class="card span-5">
+      <h2>Tiers by board</h2>
+      <div class="sub">Qualify at 90% confidence of beating a coin flip; tier on the shrunk hit rate.</div>
+      <div class="tabs" id="tier-tabs"></div>
+      <div class="scroll"><table id="tiers"></table></div>
+    </section>
+
+    <section class="card span-7">
+      <h2>Call feed</h2>
+      <div class="sub">Open calls are sealed: only a fingerprint shows until they resolve.</div>
+      <div class="scroll"><table id="calls"></table></div>
+    </section>
+    <section class="card span-5">
+      <h2>Stocks &amp; bands</h2>
+      <div class="sub">± is the take-profit and stop distance, recalibrated daily.</div>
+      <div id="pairs"></div>
+    </section>
+
     <section class="card span-5"><h2>Consensus signals</h2><div class="scroll"><table id="signals"></table></div></section>
-    <section class="card span-12"><h2>Agent trades</h2><div class="scroll"><table id="trades"></table></div></section>
+    <section class="card span-7"><h2>Agent trades (Bitget demo)</h2><div class="scroll"><table id="trades"></table></div></section>
   </div>
 </main>
 <script>
 const STRATS = [
-  { key: 'consensus', label: 'Agent: top-ranked consensus', color: 'var(--series-1)' },
-  { key: 'top5', label: 'Follow top-5 individually', color: 'var(--series-2)' },
+  { key: 'tiered', label: 'Follow tiered callers', color: 'var(--series-1)' },
+  { key: 'consensus', label: 'Agent: consensus', color: 'var(--series-2)' },
   { key: 'everyone', label: 'Follow everyone', color: 'var(--series-3)' },
 ];
-let which = (() => { try { return localStorage.getItem('db') || 'sim'; } catch { return 'sim'; } })();
+let which = new URLSearchParams(location.search).get('db') || (() => { try { return localStorage.getItem('db') || 'live'; } catch { return 'live'; } })();
+let tierBoard = 'intraday';
+let last = null;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = (x) => x == null || isNaN(x) ? '–' : (x * 100).toFixed(1) + '%';
-const sym = (s) => s.replace(/USDT$/, '');
-const time = (t) => new Date(t).toISOString().slice(5, 16).replace('T', ' ');
+const sym = (s) => String(s).replace(/USDT$/, '');
+const time = (t) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 const px = (x, ref = x) => { const d = Math.max(0, 4 - Math.floor(Math.log10(Math.abs(ref || 1)))); return Number(x).toFixed(Math.min(d, 8)); };
 const signed = (x, d = 2) => x == null ? '–' : `<span class="${x >= 0 ? 'pos' : 'neg'}">${x >= 0 ? '+' : ''}${x.toFixed(d)}R</span>`;
+const BADGE = { WOLF: '🐺', SHARP: '🎯', BASE: '✅' };
 const table = (el, head, rows) => {
   el.innerHTML = `<thead><tr>${head.map((h) => `<th class="${h.startsWith('#') ? 'num' : ''}">${h.replace(/^#/, '')}</th>`).join('')}</tr></thead>`
     + `<tbody>${rows.length ? rows.map((r) => `<tr>${r.map((c, i) => `<td class="${head[i].startsWith('#') ? 'num' : ''}">${c}</td>`).join('')}</tr>`).join('')
@@ -124,98 +156,128 @@ document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('clic
   load();
 }));
 
-function drawChart(bt) {
+function drawBars(bt, meta) {
   const svg = $('chart'), wrap = $('chart-wrap'), tip = $('tip');
-  const W = wrap.clientWidth, H = 320, m = { l: 48, r: 16, t: 12, b: 28 };
+  const W = wrap.clientWidth, H = 300, m = { l: 52, r: 12, t: 16, b: 36 };
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  const series = STRATS.map((s) => ({ ...s, pts: (bt.strategies.find((x) => x.strategy === s.key)?.curve ?? []) }));
-  const t0 = bt.period.start, t1 = bt.period.end;
-  const all = series.flatMap((s) => s.pts.map((p) => p.r)).concat([0]);
-  let lo = Math.min(...all), hi = Math.max(...all);
-  const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
-  const x = (t) => m.l + (t - t0) / (t1 - t0) * (W - m.l - m.r);
-  const y = (r) => m.t + (hi - r) / (hi - lo) * (H - m.t - m.b);
+  const rows = bt.byBoard || [];
+  const get = (b, s) => rows.find((r) => r.board === b && r.strategy === s);
+  const vals = rows.filter((r) => r.trades).map((r) => r.avgR).concat([0]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.12 || 0.1; lo -= pad; hi += pad;
+  const y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  const groupW = (W - m.l - m.r) / meta.length, barW = Math.min(36, (groupW - 24) / STRATS.length - 2);
   const step = (() => { const raw = (hi - lo) / 5, p = 10 ** Math.floor(Math.log10(raw)); return [1, 2, 5, 10].map((k) => k * p).find((k) => k >= raw); })();
   let g = '';
-  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step)
-    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" ${Math.abs(v) < 1e-9 ? 'stroke="var(--text-muted)"' : ''}/>`
-      + `<text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${+v.toFixed(2)}R</text>`;
-  g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(0)}" y2="${y(0)}" stroke="var(--text-muted)" stroke-width="1"/>`;
-  for (let d = Math.ceil(t0 / 864e5) * 864e5; d < t1; d += 864e5)
-    g += `<text x="${x(d)}" y="${H - 8}" text-anchor="middle">${new Date(d).toISOString().slice(5, 10)}</text>`;
-  for (const s of series) {
-    if (!s.pts.length) continue;
-    const d = [`M${x(t0)},${y(0)}`, ...s.pts.map((p) => `H${x(p.t)}V${y(p.r)}`), `H${x(t1)}`].join('');
-    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
-  }
-  g += `<line id="xh" y1="${m.t}" y2="${H - m.b}" stroke="var(--text-muted)" stroke-dasharray="3 3" visibility="hidden"/>`;
-  g += series.map((s, i) => `<circle id="dot${i}" r="4" fill="${s.color}" stroke="var(--surface-1)" stroke-width="2" visibility="hidden"/>`).join('');
-  g += `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" id="hit"/>`;
-  svg.innerHTML = g;
-  const at = (pts, t) => { let r = 0; for (const p of pts) { if (p.t > t) break; r = p.r; } return r; };
-  const hit = svg.querySelector('#hit');
-  hit.addEventListener('mousemove', (ev) => {
-    const bx = svg.getBoundingClientRect(), mx = ev.clientX - bx.left;
-    const t = t0 + (mx - m.l) / (W - m.l - m.r) * (t1 - t0);
-    const xh = svg.querySelector('#xh'); xh.setAttribute('x1', mx); xh.setAttribute('x2', mx); xh.setAttribute('visibility', 'visible');
-    const rows = series.map((s, i) => {
-      const r = at(s.pts, t), n = s.pts.filter((p) => p.t <= t).length;
-      const c = svg.querySelector('#dot' + i); c.setAttribute('cx', mx); c.setAttribute('cy', y(r)); c.setAttribute('visibility', 'visible');
-      return `<div class="row"><span><i style="background:${s.color}"></i>${s.label}</span><b>${r >= 0 ? '+' : ''}${r.toFixed(2)}R</b></div><div class="row muted"><span></span><span>${n} trades</span></div>`;
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step)
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${+v.toFixed(2)}R</text>`;
+  g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(0)}" y2="${y(0)}" stroke="var(--axis)"/>`;
+  meta.forEach((b, i) => {
+    const gx = m.l + i * groupW + (groupW - STRATS.length * (barW + 2)) / 2;
+    g += `<text x="${m.l + (i + 0.5) * groupW}" y="${H - 14}" text-anchor="middle" style="font-weight:600">${b.title}</text>`
+      + `<text x="${m.l + (i + 0.5) * groupW}" y="${H - 2}" text-anchor="middle">${b.hours}h</text>`;
+    STRATS.forEach((s, j) => {
+      const r = get(b.id, s.key), x = gx + j * (barW + 2);
+      if (!r || !r.trades) { g += `<text x="${x + barW / 2}" y="${y(0) - 4}" text-anchor="middle" class="muted">–</text>`; return; }
+      const y0 = y(0), y1 = y(r.avgR), top = Math.min(y0, y1), h = Math.max(2, Math.abs(y1 - y0));
+      // rounded data-end, square at the baseline
+      const rad = Math.min(4, h / 2), up = r.avgR >= 0;
+      const d = up
+        ? `M${x},${y0}V${top + rad}Q${x},${top} ${x + rad},${top}H${x + barW - rad}Q${x + barW},${top} ${x + barW},${top + rad}V${y0}Z`
+        : `M${x},${y0}V${top + h - rad}Q${x},${top + h} ${x + rad},${top + h}H${x + barW - rad}Q${x + barW},${top + h} ${x + barW},${top + h - rad}V${y0}Z`;
+      const thin = r.trades < 20;
+      g += `<path d="${d}" fill="${s.color}" ${thin ? 'fill-opacity="0.45"' : ''}/>`
+        + `<text x="${x + barW / 2}" y="${up ? top - 4 : top + h + 12}" text-anchor="middle">n=${r.trades}</text>`
+        + `<rect x="${x - 1}" y="${m.t}" width="${barW + 2}" height="${H - m.t - m.b}" fill="transparent" data-b="${b.id}" data-s="${s.key}"/>`;
     });
-    tip.innerHTML = `<div class="muted">${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC</div>${rows.join('')}`;
-    tip.style.display = 'block';
-    tip.style.left = Math.min(mx + 14, W - tip.offsetWidth - 4) + 'px';
-    tip.style.top = '16px';
   });
-  hit.addEventListener('mouseleave', () => {
-    tip.style.display = 'none';
-    svg.querySelectorAll('#xh, circle').forEach((e) => e.setAttribute('visibility', 'hidden'));
+  svg.innerHTML = g;
+  svg.querySelectorAll('rect[data-b]').forEach((el) => {
+    el.addEventListener('mousemove', (ev) => {
+      const r = get(el.dataset.b, el.dataset.s), s = STRATS.find((x) => x.key === el.dataset.s), b = meta.find((x) => x.id === el.dataset.b);
+      tip.innerHTML = `<div class="muted">${b.title} · ${b.hours}h</div><div><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${s.color};margin-right:6px"></i>${s.label}</div>`
+        + `<div class="row"><span>Avg per trade</span><b>${r.avgR >= 0 ? '+' : ''}${r.avgR.toFixed(3)}R</b></div>`
+        + `<div class="row"><span>Trades</span><span>${r.trades}</span></div><div class="row"><span>Hit rate</span><span>${pct(r.hitRate)}</span></div>`;
+      tip.style.display = 'block';
+      const bx = svg.getBoundingClientRect();
+      tip.style.left = Math.min(ev.clientX - bx.left + 14, W - tip.offsetWidth - 4) + 'px';
+      tip.style.top = Math.max(0, ev.clientY - bx.top - 40) + 'px';
+    });
+    el.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
   });
 }
 
 function render(s) {
+  last = s;
   document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.db === which)));
+  $('session').textContent = s.simulated ? '' : s.session;
   $('banner').innerHTML = s.simulated
-    ? '<div class="banner">SIMULATED: fake traders with assigned skill, replayed on real Bitget 1-minute candles. Not real traders or real P&amp;L.</div>'
+    ? '<div class="banner">SIMULATED: fake traders with assigned skill, calling Bitget stock perps in real US session hours, replayed on real 1-minute candles. Not real traders or real P&amp;L.</div>'
     : (s.kill ? '<div class="banner">Kill switch is ON: the agent will not open trades.</div>' : '');
+  const title = Object.fromEntries(s.boardMeta.map((b) => [b.id, b.title]));
   const c = s.counts || {};
   const decided = (c.wins || 0) + (c.losses || 0);
   const tr = s.trades.filter((t) => t.pnl_r != null);
   const totalR = tr.reduce((a, t) => a + t.pnl_r, 0);
+  const ld = s.rewards.lastDayRows;
   $('tiles').innerHTML = [
-    ['Calls', c.calls || 0], ['Open', c.open || 0], ['Crowd hit rate', pct(decided ? c.wins / decided : null)],
-    ['Wash rate', pct(c.calls - c.open ? c.washes / (c.calls - c.open) : null)], ['Signals', s.signals.length],
-    ['Agent trades', s.trades.filter((t) => !['blocked', 'rejected', 'proposed'].includes(t.status)).length],
-    ['Agent R (shown)', tr.length ? (totalR >= 0 ? '+' : '') + totalR.toFixed(2) : '–'],
+    ['Calls', c.calls || 0], ['Sealed (open)', c.open || 0], ['Crowd hit rate', pct(decided ? c.wins / decided : null)],
+    ['Wash rate', pct(c.calls - c.open ? c.washes / (c.calls - c.open) : null)],
+    ['65% club last day', ld ? `${ld.qualified || 0}/${ld.traders}` : '–'], ['Signals', s.signals.length],
+    ['Agent R', tr.length ? (totalR >= 0 ? '+' : '') + totalR.toFixed(2) : '–'],
   ].map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
 
   const bt = s.backtest;
-  if (bt) {
-    $('bt-sub').textContent = `SIMULATED replay, ${new Date(bt.period.start).toISOString().slice(0, 10)} → ${new Date(bt.period.end).toISOString().slice(0, 10)}. `
-      + 'Cumulative R after fees and spread; 1R = the bracket distance. Ambiguous candles count as full losses.';
+  if (bt && bt.byBoard) {
+    $('bt-sub').textContent = `SIMULATED replay, ${new Date(bt.period.start).toISOString().slice(0, 10)} → ${new Date(bt.period.end).toISOString().slice(0, 10)} · `
+      + 'average R per trade after fees and spread (1R = the band) · "tiered" follows every call from a trader holding a tier at that moment · faded bars: fewer than 20 trades.';
     $('legend').innerHTML = STRATS.map((x) => `<span><i style="background:${x.color}"></i>${x.label}</span>`).join('');
-    drawChart(bt);
-    table($('bt-table'), ['Strategy', '#Trades', '#Wins', '#Losses', '#Washes', '#Hit rate', '#Total R', '#Avg R', '#Max DD'],
-      bt.strategies.map((x) => [esc(STRATS.find((s) => s.key === x.strategy)?.label ?? x.strategy), x.trades, x.wins, x.losses, x.washes,
-        pct(x.hitRate), signed(x.totalR), signed(x.avgR, 3), signed(x.maxDrawdownR)]));
+    drawBars(bt, s.boardMeta);
+    table($('bt-table'), ['Board', 'Strategy', '#Trades', '#Hit rate', '#Avg R', '#Total R', '#Max DD'],
+      bt.byBoard.map((x) => [title[x.board] ?? x.board, esc(STRATS.find((t) => t.key === x.strategy)?.label ?? x.strategy), x.trades,
+        pct(x.hitRate), x.trades ? signed(x.avgR, 3) : '–', x.trades ? signed(x.totalR) : '–', x.trades ? signed(x.maxDrawdownR) : '–']));
   } else {
     $('bt-sub').textContent = 'Run `npm run simulate` to produce the replay.';
   }
 
-  table($('board'), ['#', 'Trader', '#Score', '#W', '#L', '#Wash', '#Hit', '#Wash rate'],
-    s.leaderboard.map((t, i) => [t.qualified ? i + 1 : '·', esc(t.name), (t.rankScore * 100).toFixed(1), t.wins, t.losses, t.washes, pct(t.hitRate), pct(t.washRate)]));
-  table($('pairs'), ['Pair', 'Window', '#Price', '#Band', 'State'],
-    s.profiles.map((p) => [sym(p.pair), p.volatile ? '30m' : '8h', px(p.price), `${px(p.band_lo, p.price)}–${px(p.band_hi, p.price)}`,
-      p.closed ? '<span class="pill">closed</span>' : p.band_lo > p.band_hi ? '<span class="pill">too quiet</span>' : 'open']));
-  const icon = { open: '⏳', win: '✅', loss: '❌', wash: '➖' };
-  table($('calls'), ['Locked', 'Trader', 'Pair', 'Dir', '#Entry', '#±Dist', 'Result'],
-    s.calls.map((c) => [time(c.locked_at), esc(c.name), sym(c.pair), c.direction, px(c.entry), px(c.distance, c.entry),
-      `${icon[c.status]} ${c.status}${c.wash_reason ? ` (${c.wash_reason})` : ''}`]));
-  table($('signals'), ['Time', 'Pair', 'Dir', '#Traders', '#Agree'],
-    s.signals.map((x) => [time(x.created_at), sym(x.pair), x.direction, x.n_traders, pct(x.agreement)]));
-  table($('trades'), ['Created', 'Pair', 'Dir', '#Entry', '#TP', '#SL', 'Status', '#R', 'Note'],
-    s.trades.map((t) => [time(t.created_at), sym(t.pair), t.direction, px(t.entry), px(t.target, t.entry), px(t.stop, t.entry), t.status,
+  const rule = s.rewards.rule;
+  $('club-sub').textContent = `Each trading day: last ${rule.rollingDecisive} wins+losses ≥ ${Math.round(rule.minRate * 100)}% and ${rule.minCallsToday}+ calls `
+    + `→ share of ${rule.dailyPool.toLocaleString()} pts, split by that day's wins × tier.` + (s.rewards.lastDay ? ` Last settled: ${s.rewards.lastDay}.` : '');
+  table($('club'), ['#', 'Trader', '#Pts 7d', '#Pts all', '#Days', 'Streak', '#Last 20'],
+    s.rewards.board.map((r, i) => [i + 1, esc(r.name), r.points7d.toFixed(0), r.pointsAll.toFixed(0), r.qualifiedDays, r.streak ? `🔥${r.streak}` : '–', r.rolling]));
+
+  $('tier-tabs').innerHTML = s.boardMeta.map((b) => `<button data-b="${b.id}" aria-pressed="${b.id === tierBoard}">${b.title} · ${b.hours}h</button>`).join('');
+  $('tier-tabs').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { tierBoard = b.dataset.b; render(last); }));
+  table($('tiers'), ['#', 'Trader', 'Status', '#W', '#L', '#Hit', '#Conf.'],
+    (s.boards[tierBoard]?.leaderboard ?? []).map((t, i) => [i + 1, esc(t.name),
+      t.tier ? `${BADGE[t.tier]} ${t.tier}` : t.eliminated ? '⛔ out' : t.copier ? '⚠️ copier' : `<span class="muted">${t.status}</span>`,
+      t.wins, t.losses, pct(t.hitRate), pct(t.lb)]));
+
+  const icon = { open: '🔒', win: '✅', loss: '❌', wash: '➖' };
+  table($('calls'), ['Locked (NY)', 'Trader', 'Board', 'Call', '#Entry', 'Result'],
+    s.calls.map((c) => c.status === 'open'
+      ? [time(c.locked_at), esc(c.name), title[c.board], `<span class="mono muted">sealed ${esc(c.commit_hash.slice(0, 12))}</span>`, '', '🔒 open']
+      : [time(c.locked_at), esc(c.name), title[c.board], `${sym(c.pair)} ${c.direction} ±${(c.band_bps / 100).toFixed(2)}%`, px(c.entry),
+        `${icon[c.status]} ${c.status}${c.wash_reason ? ` (${c.wash_reason})` : ''}`]));
+
+  const band = (pair, b) => s.bands.find((x) => x.pair === pair && x.board === b);
+  const grp = (g, label) => {
+    const bs = s.boardMeta.filter((b) => b.group === g);
+    const rows = s.pairs.filter((p) => p.group === g).map((p) => {
+      const q = s.bands.find((x) => x.pair === p.symbol);
+      return [`<b>${p.label}</b> <span class="muted">${esc(p.name)}</span>`, q?.price ? px(q.price) : '–',
+        ...bs.map((b) => { const x = band(p.symbol, b.id); return x ? (x.listed ? `±${(x.bps / 100).toFixed(2)}%` : '<span class="muted">—</span>') : '–'; })];
+    });
+    return `<div class="group-h">${label}</div><div class="scroll"><table>`
+      + `<thead><tr><th>Stock</th><th class="num">Price</th>${bs.map((b) => `<th class="num">${b.title}</th>`).join('')}</tr></thead>`
+      + `<tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${i ? 'num' : ''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  };
+  $('pairs').innerHTML = grp('liquid', '⚡ Liquid — HT 2h · LT 8h') + grp('long', '🕰 Long-term — D1 24h · D2 48h');
+
+  table($('signals'), ['Time (NY)', 'Board', 'Stock', 'Dir', '#Traders', '#Weight'],
+    s.signals.map((x) => [time(x.created_at), title[x.board] ?? x.board, sym(x.pair), x.direction, x.n_traders, pct(x.agreement)]));
+  table($('trades'), ['Created (NY)', 'Board', 'Stock', 'Dir', '#Entry', '#TP', '#SL', 'Status', '#R', 'Note'],
+    s.trades.map((t) => [time(t.created_at), title[t.board] ?? t.board, sym(t.pair), t.direction, px(t.entry), px(t.target, t.entry), px(t.stop, t.entry), t.status,
       t.pnl_r == null ? '–' : signed(t.pnl_r), esc(t.risk_note || t.reason || '')]));
 }
 
@@ -224,8 +286,8 @@ async function load() {
   catch (e) { $('banner').innerHTML = `<div class="banner">Could not load data: ${esc(e.message)}</div>`; }
 }
 load();
-setInterval(load, 10000);
-let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(load, 200); });
+setInterval(load, 15000);
+let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => last && render(last), 150); });
 </script>
 </body>
 </html>

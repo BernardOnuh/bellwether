@@ -130,3 +130,24 @@ test('daily 65% club: rolling 20, two calls today, pool split, streaks', async (
   const t2 = new Map(settleDay(db, '2026-10-13', 'us').map((r) => [r.trader_id, r]));
   assert.equal(t2.get(1)!.streak, 2);
 });
+
+test('agreeing with different callers in busy moments is not copying', () => {
+  const db = openDb(':memory:');
+  for (let i = 0; i < 12; i++) db.prepare('INSERT INTO traders (name, created_at) VALUES (?, 0)').run(`t${i}`);
+  const t0 = Date.UTC(2026, 8, 1);
+  const raw = (tr: number, t: number, pair: string) =>
+    db.prepare("INSERT INTO calls (trader_id, board, pair, direction, band_bps, distance, entry, target, stop, locked_at, expires_at, status, resolved_at, commit_hash, salt) VALUES (?, 'swing', ?, 'long', 100, 1, 100, 101, 99, ?, ?, 'win', ?, 'h', 's')")
+      .run(tr, pair, t, t + 480 * M, t + 60 * M);
+  // ten established leaders (10+ decisive each)
+  for (let l = 2; l <= 11; l++) for (let i = 0; i < 10; i++) raw(l, t0 + i * DAY + l * M, 'AAPLUSDT');
+  // trader 1 lands second ten times, each time behind a different leader
+  for (let l = 2; l <= 11; l++) {
+    const t = t0 + (20 + l) * DAY;
+    raw(l, t, 'NVDAUSDT');
+    const c = insertCall(db, { traderId: 1, pair: 'NVDAUSDT', board: 'swing', direction: 'long', bandBps: 100, entry: 100, lockedAt: t + 3 * M });
+    applyOutcome(db, c.id, { status: 'win', at: t + 60 * M, exit: 100 } as never);
+  }
+  const s = boardStats(db, 'swing', t0 + 40 * DAY).get(1)!;
+  assert.equal(s.copier, false);
+  assert.equal(s.wins, 10);
+});

@@ -1,10 +1,11 @@
-// One-page dashboard: leaderboard, call feed, consensus signals, agent trades, and the backtest headline chart.
+// One-page dashboard: 65% club, tiers per board, sealed call feed, bands, consensus signals, agent trades, backtest headline.
 // GET /?db=sim shows the simulated replay; default is the live database.
 import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { openDb, getSetting, type DB } from './db.js';
 import { leaderboard } from './scoring.js';
-import { BOARDS, BOARD_IDS } from './config.js';
+import { BOARDS, BOARD_IDS, PAIRS, REWARDS } from './config.js';
+import { rewardBoard, ensureRewardsTable } from './rewards.js';
 import { sessionLine } from './sessions.js';
 
 const dbs = new Map<string, DB>();
@@ -27,9 +28,15 @@ function state(which: string) {
   const counts = db.prepare(`SELECT COUNT(*) AS calls, SUM(status='win') AS wins, SUM(status='loss') AS losses, SUM(status='wash') AS washes,
     SUM(status='open') AS open FROM calls`).get();
   const asOf = which === 'sim' ? Number((db.prepare('SELECT MAX(resolved_at) AS t FROM calls').get() as { t: number | null }).t ?? Date.now()) : Date.now();
+  ensureRewardsTable(db);
+  const lastDay = (db.prepare('SELECT MAX(day) AS d FROM daily_rewards').get() as { d: string | null }).d;
+  const lastDayRows = lastDay ? db.prepare('SELECT COUNT(*) AS traders, SUM(eligible) AS qualified FROM daily_rewards WHERE day = ?').get(lastDay) : null;
   return {
     which, simulated: which === 'sim', kill: getSetting(db, 'kill') === '1', counts, session: sessionLine(Date.now()),
+    boardMeta: BOARD_IDS.map((b) => ({ id: b, title: BOARDS[b].title, hours: BOARDS[b].hours, group: BOARDS[b].group })),
+    pairs: PAIRS,
     boards: Object.fromEntries(BOARD_IDS.map((b) => [b, { title: BOARDS[b].title, leaderboard: leaderboard(db, b, asOf).slice(0, 20) }])),
+    rewards: { rule: REWARDS, lastDay, lastDayRows, board: rewardBoard(db, asOf + 86_400_000).slice(0, 25) },
     calls, signals, trades, bands,
     backtest: existsSync('results/backtest.json') ? JSON.parse(readFileSync('results/backtest.json', 'utf8')) : null,
   };

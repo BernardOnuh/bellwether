@@ -20,19 +20,25 @@ export function tierFor(shrunk: number) {
 }
 
 /**
- * Habitual copiers as of `asOf`, judged across all boards: at least 8 of their decisive calls landed second behind
- * an established leader (10+ decisive calls, so throwaway accounts can't manufacture flags), and copies are at least
- * half of their decisive calls.
+ * Habitual copiers as of `asOf`: traders who shadow one specific leader. Flagged when at least 8 of their decisive
+ * calls (across all boards) landed second behind the same established leader (10+ decisive calls, so throwaway
+ * accounts can't manufacture flags), and those copies are at least half of their decisive calls. Agreeing with
+ * different people in busy moments is normal and never flags.
  */
 export function copierSet(db: DB, asOf: number): Set<number> {
-  const rows = db.prepare(`SELECT c.trader_id,
-      COUNT(*) AS decisive,
-      SUM(CASE WHEN c.copied_from IS NOT NULL AND (
-        SELECT COUNT(*) FROM calls d WHERE d.trader_id = l.trader_id AND d.status IN ('win','loss') AND d.resolved_at <= ?) >= ? THEN 1 ELSE 0 END) AS copies
-    FROM calls c LEFT JOIN calls l ON l.id = c.copied_from
+  const decisive = new Map((db.prepare(`SELECT trader_id, COUNT(*) AS n FROM calls WHERE status IN ('win','loss') AND resolved_at <= ? GROUP BY trader_id`)
+    .all(asOf) as { trader_id: number; n: number }[]).map((r) => [r.trader_id, r.n]));
+  const leaderOk = new Set([...decisive].filter(([, n]) => n >= SCORING.copyLeaderMinDecisive).map(([id]) => id));
+  const pairs = db.prepare(`SELECT c.trader_id, l.trader_id AS leader, COUNT(*) AS copies
+    FROM calls c JOIN calls l ON l.id = c.copied_from
     WHERE c.status IN ('win','loss') AND c.resolved_at <= ?
-    GROUP BY c.trader_id`).all(asOf, SCORING.copyLeaderMinDecisive, asOf) as { trader_id: number; decisive: number; copies: number }[];
-  return new Set(rows.filter((r) => r.copies >= SCORING.copyMinCopies && r.copies / r.decisive >= SCORING.copyHabitualShare).map((r) => r.trader_id));
+    GROUP BY c.trader_id, l.trader_id`).all(asOf) as { trader_id: number; leader: number; copies: number }[];
+  const out = new Set<number>();
+  for (const r of pairs) {
+    if (!leaderOk.has(r.leader)) continue;
+    if (r.copies >= SCORING.copyMinCopies && r.copies / (decisive.get(r.trader_id) ?? 1) >= SCORING.copyHabitualShare) out.add(r.trader_id);
+  }
+  return out;
 }
 
 export type Status = 'eliminated' | 'warmup' | 'unqualified' | 'below tier' | 'BASE' | 'SHARP' | 'WOLF';
