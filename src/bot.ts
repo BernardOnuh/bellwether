@@ -8,6 +8,7 @@ import { boardStats, leaderboard, TIER_BADGE, type TraderStats } from './scoring
 import { crossesWeekend, sessionLine, sessionOpen } from './sessions.js';
 import type { Signal } from './consensus.js';
 import { rewardBoard, todayProgress, type DailyReward } from './rewards.js';
+import { MAX_AGENTS_PER_OWNER, createAgent, listAgents, revokeAgent } from './agents.js';
 
 const pctN = (x: number) => `${Math.round(x * 100)}%`;
 const pct = (x: number) => (Number.isFinite(x) ? `${(x * 100).toFixed(0)}%` : '–');
@@ -101,6 +102,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     `• Limits per day: ${BOARD_IDS.map((b) => `${BOARDS[b].title} ${BOARDS[b].dailyCap} (${BOARDS[b].minGapMin >= 60 ? BOARDS[b].minGapMin / 60 + 'h' : BOARDS[b].minGapMin + ' min'} apart)`).join(' · ')}. One open call per stock per board.`,
     '',
     `<b>🏆 Daily rewards — the ${pctN(REWARDS.minRate)} club</b>`,
+    `• <b>Warmup first:</b> your first ${REWARDS.warmupDays} days (with calls on ${REWARDS.warmupActiveDays}+ trading days) build your record but earn nothing. Then the main game starts.`,
     `• Every trading day at midnight New York, you earn a share of <b>${REWARDS.dailyPool.toLocaleString()} points</b> if your last `
       + `${REWARDS.rollingDecisive} wins+losses are at least ${pctN(REWARDS.minRate)} wins (${Math.ceil(REWARDS.minRate * REWARDS.rollingDecisive)} of ${REWARDS.rollingDecisive}) `
       + `and you made at least ${REWARDS.minCallsToday} calls that day.`,
@@ -128,6 +130,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     '/tiers — tiers on each board',
     '/rules — how scoring works',
     '/name — change your leaderboard name',
+    '/apikey — let your own AI agent submit calls',
   ].join('\n');
 
   function exampleLine() {
@@ -147,6 +150,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       + `🏆 <b>Daily rewards:</b> keep your last ${REWARDS.rollingDecisive} wins+losses at <b>${pctN(REWARDS.minRate)} or better</b> `
       + `and make ${REWARDS.minCallsToday}+ calls a day, and you share ${REWARDS.dailyPool.toLocaleString()} points every trading day. `
       + 'Qualify day after day for a 🔥 streak.\n\n'
+      + `🌱 <b>Warmup:</b> your first ${REWARDS.warmupDays} days, with calls on ${REWARDS.warmupActiveDays}+ trading days, build your record before the main game.\n\n`
       + 'Your hit rate also sets a tier that boosts your share: ✅ BASE 55% · 🎯 SHARP 60% · 🐺 WOLF 70% (2×).',
     () => '<b>3/3 · What your calls power</b>\n\nWhen several top-tier traders call the same stock the same way, an AI agent '
       + 'proposes that trade. A human confirms it, and it runs on a <b>Bitget demo account</b> (paper money).\n\n'
@@ -235,6 +239,39 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
 
   bot.command('myid', (ctx) => ctx.reply(`Your Telegram id is <code>${ctx.from!.id}</code>.`
     + (adminId ? (isAdmin(ctx) ? ' You are the admin.' : '') : '\nPut it in ADMIN_CHAT_ID in .env and restart to become the admin.'), HTML));
+  // ---------- AI agents ----------
+  // /apikey               -> list your agents
+  // /apikey new <name>    -> create an agent and show its API key once
+  // /apikey revoke <name> -> disable an agent's key (its record stays)
+  bot.command('apikey', async (ctx) => {
+    const owner = String(ctx.from!.id);
+    const [sub, ...rest] = ctx.match.trim().split(/\s+/).filter(Boolean);
+    const base = (process.env.WEBAPP_URL || `http://localhost:${process.env.DASHBOARD_PORT ?? 8787}`).replace(/\/$/, '');
+    if (sub === 'new') {
+      const r = createAgent(db, owner, rest.join(' '));
+      if ('error' in r) return ctx.reply(`🚫 ${esc(r.error)}`, HTML);
+      return ctx.reply([
+        `🤖 <b>${esc(r.agent.name)}</b> created. Its API key (shown once, keep it secret):`,
+        `<code>${r.key}</code>`,
+        '',
+        `Submit a call:\n<code>curl -X POST ${base}/api/v1/calls -H "Authorization: Bearer ${r.key.slice(0, 10)}…" -H "content-type: application/json" -d '{"symbol":"NVDA","direction":"long","board":"LT"}'</code>`,
+        '',
+        `Same rules as humans: market hours, caps, sealing, an ${REWARDS.warmupDays}-day warmup, then the ${pctN(REWARDS.minRate)} club. Docs: AGENT_API.md in the repo.`,
+      ].join('\n'), HTML);
+    }
+    if (sub === 'revoke') {
+      return ctx.reply(revokeAgent(db, owner, rest.join(' ')) ? '✅ Key revoked. The agent\'s record stays on the board.' : 'No active agent with that name.');
+    }
+    const agents = listAgents(db, owner);
+    await ctx.reply([
+      `<b>Your AI agents</b> (${agents.filter((a) => !a.revoked_at).length}/${MAX_AGENTS_PER_OWNER})`,
+      ...(agents.length ? agents.map((a) => `${a.revoked_at ? '⛔' : '🟢'} ${esc(a.name)} · key ${a.api_key_prefix}… · ${a.first_call_at ? `first call ${new Date(a.first_call_at).toISOString().slice(0, 10)}` : 'no calls yet'}`) : ['None yet.']),
+      '',
+      'Create one: <code>/apikey new my_bot</code>',
+      'Revoke: <code>/apikey revoke my_bot</code>',
+    ].join('\n'), HTML);
+  });
+
   bot.command('help', (ctx) => ctx.reply(helpText, { ...HTML, reply_markup: menu() }));
   bot.command('rules', (ctx) => ctx.reply(rulesText(), HTML));
 
@@ -320,7 +357,11 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     });
     const p = todayProgress(db, t.id, now);
     const me = rewardBoard(db, now).find((r) => r.trader_id === t.id);
-    const club = `🏆 <b>${pctN(REWARDS.minRate)} club</b> ${p.onTrack ? '— on track today ✅' : ''}\n`
+    const w = p.warmup;
+    const warm = !w.started ? `🌱 Warmup: starts with your first call (${REWARDS.warmupDays} days, ${REWARDS.warmupActiveDays}+ active trading days)\n`
+      : !w.done ? `🌱 Warmup: day ${Math.min(w.days, REWARDS.warmupDays)} of ${REWARDS.warmupDays} · active on ${Math.min(w.activeDays, REWARDS.warmupActiveDays)}/${REWARDS.warmupActiveDays} trading days — calls count, rewards start after\n`
+      : '✅ Warmup complete — you\'re in the main game\n';
+    const club = `🏆 <b>${pctN(REWARDS.minRate)} club</b> ${p.onTrack ? '— on track today ✅' : ''}\n${warm}`
       + `   Last ${REWARDS.rollingDecisive}: ${p.wins}/${p.n} wins${p.n >= REWARDS.rollingDecisive ? ` (${pct(p.wins / p.n)}, need ${p.need})` : ` · ${REWARDS.rollingDecisive - p.n} more wins+losses to be counted`}\n`
       + `   Today: ${p.calls}/${REWARDS.minCallsToday} calls · Points: ${(me?.points7d ?? 0).toFixed(0)} this week, ${(me?.pointsAll ?? 0).toFixed(0)} all-time`
       + (me?.streak ? ` · 🔥${me.streak}` : '');
@@ -459,6 +500,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       { command: 'tiers', description: 'Tiers on each board' },
       { command: 'rules', description: 'How scoring works' },
       { command: 'name', description: 'Change your leaderboard name' },
+      { command: 'apikey', description: 'API keys for your AI agents' },
       { command: 'help', description: 'All commands' },
     ],
     async notifyResolved(c: CallRow) {

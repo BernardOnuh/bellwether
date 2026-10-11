@@ -21,6 +21,20 @@ const DDL = `CREATE TABLE IF NOT EXISTS daily_rewards (
 )`;
 export const ensureRewardsTable = (db: DB) => db.exec(DDL);
 
+/** Warmup status at `asOf`: days since first call and distinct New York trading days with at least one call. */
+export function warmupStatus(db: DB, traderId: number, asOf: number) {
+  const t = db.prepare('SELECT first_call_at FROM traders WHERE id = ?').get(traderId) as { first_call_at: number | null } | undefined;
+  const first = t?.first_call_at ?? null;
+  if (first === null || first > asOf) return { started: false, days: 0, activeDays: 0, done: false, endsAt: null as number | null };
+  const days = Math.floor((asOf - first) / 86_400_000);
+  const rows = db.prepare('SELECT locked_at FROM calls WHERE trader_id = ? AND locked_at <= ?').all(traderId, asOf) as { locked_at: number }[];
+  const activeDays = new Set(rows.map((r) => etDay(r.locked_at))).size;
+  return {
+    started: true, days, activeDays, endsAt: first + REWARDS.warmupDays * 86_400_000,
+    done: days >= REWARDS.warmupDays && activeDays >= REWARDS.warmupActiveDays,
+  };
+}
+
 interface Decisive { trader_id: number; board: string; status: string; copied_from: number | null; resolved_at: number }
 
 /** Last-20 rolling record per trader as of `asOf`, across both boards; a habitual copier's copied wins count as losses. */
@@ -62,7 +76,9 @@ export function settleDay(db: DB, day: string, mode = SESSION.mode): DailyReward
 
   const rows: DailyReward[] = today.map((t) => {
     const r = roll.get(t.trader_id) ?? { wins: 0, n: 0, eliminated: false, copier: false, mult: 1 };
+    const w = warmupStatus(db, t.trader_id, asOf);
     const reason = r.eliminated ? 'eliminated' : r.copier ? 'flagged as copier'
+      : !w.done ? `warmup: day ${Math.min(w.days, REWARDS.warmupDays)} of ${REWARDS.warmupDays}, active on ${Math.min(w.activeDays, REWARDS.warmupActiveDays)} of ${REWARDS.warmupActiveDays} trading days`
       : t.calls < REWARDS.minCallsToday ? `${t.calls} call today, need ${REWARDS.minCallsToday}`
       : r.n < REWARDS.rollingDecisive ? `${r.n} of ${REWARDS.rollingDecisive} wins+losses so far`
       : r.wins / r.n < REWARDS.minRate ? `last ${r.n}: ${r.wins} wins (${Math.round((r.wins / r.n) * 100)}%), need ${Math.ceil(REWARDS.minRate * r.n)}`
@@ -134,5 +150,9 @@ export function todayProgress(db: DB, traderId: number, now = Date.now()) {
   const { calls } = db.prepare('SELECT COUNT(*) AS calls FROM calls WHERE trader_id = ? AND locked_at >= ?').get(traderId, from) as { calls: number };
   const r = rollingRecord(db, now).get(traderId) ?? { wins: 0, n: 0 };
   const need = Math.ceil(REWARDS.minRate * REWARDS.rollingDecisive);
-  return { day, calls, wins: r.wins, n: r.n, need, onTrack: r.n >= REWARDS.rollingDecisive && r.wins / r.n >= REWARDS.minRate && calls >= REWARDS.minCallsToday };
+  const warmup = warmupStatus(db, traderId, now);
+  return {
+    day, calls, wins: r.wins, n: r.n, need, warmup,
+    onTrack: warmup.done && r.n >= REWARDS.rollingDecisive && r.wins / r.n >= REWARDS.minRate && calls >= REWARDS.minCallsToday,
+  };
 }

@@ -106,9 +106,9 @@ test('daily 65% club: rolling 20, two calls today, pool split, streaks', async (
     const c = insertCall(db, { traderId: tr, pair: ['NVDAUSDT', 'TSLAUSDT', 'AAPLUSDT', 'MSFTUSDT'][k++ % 4], board: 'intraday', direction: 'long', bandBps: 50, entry: 100, lockedAt: t });
     applyOutcome(db, c.id, { status: st, at: t + 30 * M, exit: 100 } as never);
   };
-  // history before Monday: good 14/20, meh 12/20, lazy 15/20
+  // history before Monday, spread over 12 days (clears the 8-day / 5-active-day warmup): good 14/20, meh 12/20, lazy 15/20
   for (let i = 0; i < 20; i++) {
-    const t = mon - 5 * DAY + i * 3 * 3600_000;
+    const t = mon - 12 * DAY + i * 13 * 3600_000;
     mk(1, t, i < 14 ? 'win' : 'loss'); mk(2, t + M, i < 12 ? 'win' : 'loss'); mk(3, t + 2 * M, i < 15 ? 'win' : 'loss');
   }
   // Monday: good makes 2 winning calls, meh 2 winning calls, lazy only 1
@@ -150,4 +150,22 @@ test('agreeing with different callers in busy moments is not copying', () => {
   const s = boardStats(db, 'swing', t0 + 40 * DAY).get(1)!;
   assert.equal(s.copier, false);
   assert.equal(s.wins, 10);
+});
+
+test('8-day warmup before the 65% club pays', async () => {
+  const { settleDay } = await import('../src/rewards.js');
+  const db = openDb(':memory:');
+  db.prepare("INSERT INTO traders (name, created_at) VALUES ('fresh', 0)").run();
+  const mon = Date.UTC(2026, 9, 12, 14);
+  let k = 0;
+  const mk = (t: number) => {
+    const c = insertCall(db, { traderId: 1, pair: ['NVDAUSDT', 'TSLAUSDT', 'AAPLUSDT', 'MSFTUSDT'][k++ % 4], board: 'intraday', direction: 'long', bandBps: 50, entry: 100, lockedAt: t });
+    applyOutcome(db, c.id, { status: 'win', at: t + 30 * M, exit: 100 } as never);
+  };
+  // 20 straight wins packed into 3 days, then 2 calls on Monday: perfect record, but still in warmup
+  for (let i = 0; i < 20; i++) mk(mon - 3 * DAY + i * 3 * 3600_000);
+  mk(mon); mk(mon + 3600_000);
+  const r = settleDay(db, '2026-10-12', 'us')[0];
+  assert.equal(r.eligible, 0);
+  assert.match(r.reason!, /warmup: day 3 of 8/);
 });

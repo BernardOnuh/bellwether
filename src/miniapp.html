@@ -147,7 +147,7 @@ async function load() {
 const STEPS = [
   ['Call US stocks', 'Pick a stock and tap <b>Long</b> or <b>Short</b>. Your tap locks the live Bitget price. The house sets take-profit and stop at the same distance, so every call is a fair test.'],
   ['Pass or fail', 'Take-profit first = <b>PASS</b>. Stop first = <b>FAILED</b>. Neither in time = no result. Boards: <b>HT</b> 2h · <b>LT</b> 8h for liquid stocks, <b>D1</b> 24h · <b>D2</b> 48h for long-term ones.'],
-  ['Join the 65% club', 'Keep your last 20 at <b>65%+</b> with 2+ calls a day and share <b>1,000 points</b> every trading day. Top callers steer an AI agent on a Bitget demo account. No deposits, not financial advice.'],
+  ['Join the 65% club', 'After an <b>8-day warmup</b>, keep your last 20 at <b>65%+</b> with 2+ calls a day and share <b>1,000 points</b> every trading day. Top callers steer an AI agent on a Bitget demo account. No deposits, not financial advice.'],
 ];
 function showIntro(i) {
   const el = $('intro'); el.classList.add('on');
@@ -292,6 +292,9 @@ function clubView() {
       <div><div class="stat">${k.wins}<span class="muted" style="font-size:16px">/${k.n}</span></div>
       <div class="sub">${counted ? `last ${k.rolling}: ${pctR(rate)} · need ${k.need} passes` : `${k.rolling - k.n} more results until you're counted`}</div>
       <div class="sub">Today: ${k.calls}/${k.minCalls} calls ${k.onTrack ? '· <b style="color:var(--pass)">on track ✅</b>' : ''}</div></div></div>
+    ${k.warmup.done ? '<p class="sub" style="color:var(--pass)">✅ Warmup complete — you\'re in the main game.</p>'
+      : `<p class="sub">🌱 <b>Warmup</b>: ${k.warmup.started ? `day ${Math.min(k.warmup.days, k.warmupDays)} of ${k.warmupDays} · active on ${Math.min(k.warmup.activeDays, k.warmupActiveDays)}/${k.warmupActiveDays} trading days` : 'starts with your first call'}. Calls count toward your record; rewards start after.</p>
+        <div class="bar"><i style="width:${Math.round(100 * Math.min(1, Math.min(k.warmup.days / k.warmupDays, k.warmup.activeDays / k.warmupActiveDays)))}%"></i></div>`}
     <div class="kv"><div><span>Points 7d</span>${Math.round(k.points7d)}</div><div><span>All-time</span>${Math.round(k.pointsAll)}</div><div><span>Streak</span>${k.streak ? '🔥' + k.streak : '–'}</div></div>
     <p class="sub">Every trading day at midnight New York, qualifiers share ${k.pool.toLocaleString()} points by that day's passes × tier.</p></div>
     <div class="card lb"><h2>This week</h2>${S.club.length ? S.club.map((r) => `<div class="row ${r.me ? 'me' : ''}">

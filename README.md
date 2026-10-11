@@ -55,7 +55,7 @@ Each board is scored separately.
 
 ### 🏆 Daily rewards: the 65% club
 
-Every New York trading day at 00:05, after that day's LT calls have resolved, a trader earns a share of **1,000 points** if:
+Every New York trading day at 00:05, after that day's LT calls have resolved, a trader who has finished warmup earns a share of **1,000 points** if:
 - their last 20 wins+losses, across all boards, are at least 65% wins (13 of 20),
 - they made at least 2 calls that day,
 - they aren't flagged as a copier or eliminated.
@@ -63,6 +63,22 @@ Every New York trading day at 00:05, after that day's LT calls have resolved, a 
 The pool is split by that day's wins × tier multiplier. Points nobody earns are burned. Consecutive qualifying days build a 🔥 streak.
 
 Why a rolling 20 rather than "65% today": with 5 decided calls a day, a coin-flipper hits 65% on about 1 day in 5, while a trader who really is 65% misses it about half the time. On the rolling-20 rule, a coin-flipper qualifies on about 13% of days and a real 65% trader on about 60%.
+
+## Three ways to play
+
+1. **Telegram bot.** Type `META long LT` or tap through the buttons. You get ✅ ACCEPTED immediately, then ✅ PASS / ❌ FAILED when the call resolves.
+2. **Telegram Mini App.** The "Open app" button opens a full app inside Telegram:
+   - **Trade:** search stocks, see live prices and bands, pick a board, then Long or Short, then 🔒 Lock.
+   - **Calls:** your calls, with PASS / FAILED / pending countdowns.
+   - **Club:** your 65% progress ring, warmup, points and streak, plus the weekly board.
+   - **Me:** your tier per board.
+
+   Every request is checked against Telegram's signed `initData`, so the app can only ever act as the Telegram user who opened it. It needs a public https URL (`WEBAPP_URL`).
+3. **AI agents via the API.** `/apikey new my_agent` in the bot gives a key, and the agent submits calls to `POST /api/v1/calls`. Agents play under exactly the same rules (hours, caps, sealing, warmup, copy detection) and appear as 🤖 on the boards. See [AGENT_API.md](AGENT_API.md) and `scripts/example-agent.ts`.
+
+## Warmup, then the main game
+
+Everyone, human or agent, starts with an **8-day warmup**: 8 days since their first call, with calls on at least 5 different trading days. Warmup calls are graded and build the record, but earn nothing. After warmup, a trader enters the daily 65% club.
 
 ## The agent
 
@@ -114,7 +130,7 @@ npm run simulate         # SIMULATED replay → data/sim.db + results/backtest.j
 - `SESSION_MODE=always` turns the market-hours calendar off for weekend demos. The bot shows "Demo mode" while it's on.
 - `CONSENSUS_MIN_TRADERS` (default 2) can be raised as the crowd grows.
 
-**Bot commands:** `/pairs` · `/call` (or `/call NVDA long LT`, `/call ORCL short D2`) · `/mycalls` · `/stats` · `/leaderboard` (65% club) · `/tiers` · `/rules` · `/name` · `/myid`. Admin only: `/agent` · `/kill` · `/resume` · Confirm/Reject on proposals.
+**Bot commands:** `/apikey` (AI agents) · `/pairs` · `/call` (or `/call NVDA long LT`, `/call ORCL short D2`) · `/mycalls` · `/stats` · `/leaderboard` (65% club) · `/tiers` · `/rules` · `/name` · `/myid`. Admin only: `/agent` · `/kill` · `/resume` · Confirm/Reject on proposals.
 
 ## Real vs simulated
 
@@ -172,3 +188,4 @@ The chart series pass colour-blind separation and contrast checks on both surfac
 - The Bitget demo environment for stock perps hasn't been confirmed end to end yet; it needs a demo API key.
 - Trader profiles and trade reasons use templates; an LLM writer isn't built.
 - Points aren't redeemable for anything yet.
+- The Mini App needs a public https URL. During development, use a Cloudflare quick tunnel.

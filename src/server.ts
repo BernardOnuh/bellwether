@@ -8,6 +8,7 @@ import { BOARDS, BOARD_IDS, PAIRS, REWARDS } from './config.js';
 import { rewardBoard, ensureRewardsTable } from './rewards.js';
 import { sessionLine } from './sessions.js';
 import { handleMiniApp } from './miniapp.js';
+import { handleAgentApi } from './agentapi.js';
 
 const dbs = new Map<string, DB>();
 const dbFor = (name: string) => {
@@ -48,6 +49,7 @@ export function startDashboard(port: number) {
     const url = new URL(req.url ?? '/', 'http://x');
     try {
       if (await handleMiniApp(dbFor('live'), req, res, url.pathname)) return;
+      if (await handleAgentApi(dbFor('live'), req, res, url)) return;
       if (url.pathname === '/app' || url.pathname === '/app/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(readFileSync(new URL('./miniapp.html', import.meta.url)));

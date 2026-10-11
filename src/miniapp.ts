@@ -58,13 +58,13 @@ function traderFor(db: DB, u: TgUser) {
 }
 
 const RESULT = { open: 'PENDING', win: 'PASS', loss: 'FAILED', wash: 'NO RESULT' } as const;
-const publicCall = (c: CallRow) => ({
+export const publicCall = (c: CallRow) => ({
   id: c.id, pair: c.pair, label: c.pair.replace(/USDT$/, ''), board: c.board, boardTitle: BOARDS[c.board].title, direction: c.direction,
   entry: c.entry, target: c.target, stop: c.stop, bandBps: c.band_bps, lockedAt: c.locked_at, expiresAt: c.expires_at,
   status: c.status, result: RESULT[c.status], washReason: c.wash_reason, exit: c.exit_price, resolvedAt: c.resolved_at, hash: c.commit_hash,
 });
 
-function market(db: DB) {
+export function market(db: DB) {
   const now = Date.now();
   return {
     session: { open: sessionOpen(now), line: sessionLine(now) },
@@ -82,14 +82,14 @@ function market(db: DB) {
   };
 }
 
-function me(db: DB, traderId: number) {
+export function me(db: DB, traderId: number) {
   const t = db.prepare('SELECT id, name, onboarded_at FROM traders WHERE id = ?').get(traderId) as { id: number; name: string; onboarded_at: number | null };
   const now = Date.now();
   const p = todayProgress(db, traderId, now);
   const standing = rewardBoard(db, now).find((r) => r.trader_id === traderId);
   return {
     id: t.id, name: t.name, onboarded: !!t.onboarded_at,
-    club: { ...p, minRate: REWARDS.minRate, rolling: REWARDS.rollingDecisive, minCalls: REWARDS.minCallsToday, pool: REWARDS.dailyPool,
+    club: { ...p, warmupDays: REWARDS.warmupDays, warmupActiveDays: REWARDS.warmupActiveDays, minRate: REWARDS.minRate, rolling: REWARDS.rollingDecisive, minCalls: REWARDS.minCallsToday, pool: REWARDS.dailyPool,
       points7d: standing?.points7d ?? 0, pointsAll: standing?.pointsAll ?? 0, streak: standing?.streak ?? 0 },
     boards: BOARD_IDS.map((b) => {
       const s = boardStats(db, b, now).get(traderId)!;

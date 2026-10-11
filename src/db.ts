@@ -120,6 +120,11 @@ export function openDb(file = process.env.DB_FILE ?? 'data/live.db'): DB {
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   migrateFromV1(db);
   db.exec(SCHEMA);
+  // Agents (API traders): owned by a Telegram user, authenticated by an API key stored only as a sha256 hash.
+  const tcols = (db.prepare('PRAGMA table_info(traders)').all() as { name: string }[]).map((c) => c.name);
+  for (const [c, t] of [['kind', "TEXT NOT NULL DEFAULT 'human'"], ['owner_tg', 'TEXT'], ['api_key_hash', 'TEXT'], ['api_key_prefix', 'TEXT'], ['revoked_at', 'INTEGER']])
+    if (!tcols.includes(c)) db.exec(`ALTER TABLE traders ADD COLUMN ${c} ${t}`);
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS traders_api_key ON traders(api_key_hash) WHERE api_key_hash IS NOT NULL');
   db.prepare("INSERT INTO settings (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(SCHEMA_VERSION));
   return db;
 }

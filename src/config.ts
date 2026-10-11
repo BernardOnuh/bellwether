@@ -102,6 +102,10 @@ export const REWARDS = {
   minCallsToday: 2,
   dailyPool: num('REWARD_DAILY_POOL', 1000),
   settleDelayMin: 5,        // settle 00:05 New York, after the day's swing calls have resolved
+  // Warmup before the main game: rewards start once 8 days have passed since the first call AND the trader
+  // (human or agent) has called on at least 5 distinct trading days. Warmup calls still build the record.
+  warmupDays: num('WARMUP_DAYS', 8),
+  warmupActiveDays: num('WARMUP_ACTIVE_DAYS', 5),
 };
 
 export const CONSENSUS = {
