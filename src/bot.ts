@@ -40,10 +40,17 @@ function statusLine(s: TraderStats) {
   return s.warmup && s.warmupEndsAt ? `${badge} · warmup until ${new Date(s.warmupEndsAt).toISOString().slice(0, 10)}` : badge;
 }
 
-const menu = () => new InlineKeyboard()
-  .text('📈 Make a call', 'm:call').text('📋 My calls', 'm:mycalls').row()
+/** Mini App URL (must be https). When set, menus get an "Open app" button and the chat menu button opens it. */
+const webAppUrl = () => (process.env.WEBAPP_URL?.startsWith('https://') ? `${process.env.WEBAPP_URL.replace(/\/$/, '')}/app` : null);
+
+const menu = () => {
+  const kb = new InlineKeyboard();
+  const url = webAppUrl();
+  if (url) kb.webApp('📱 Open Bellwether app', url).row();
+  return kb.text('📈 Make a call', 'm:call').text('📋 My calls', 'm:mycalls').row()
   .text('🏆 Leaderboard', 'm:leaderboard').text('📊 My stats', 'm:stats').row()
   .text('💹 All pairs', 'm:pairs').text('📖 Rules', 'm:rules');
+};
 
 /** Leaderboard names: 3–24 chars, letters/digits/space/_ . -, not reserved for simulated traders, unique. */
 export function validateName(db: DB, name: string, selfId?: number): string | null {

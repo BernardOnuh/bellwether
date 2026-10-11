@@ -66,6 +66,9 @@ if (tg) {
   }
   if (!process.env.ADMIN_CHAT_ID) console.warn('ADMIN_CHAT_ID not set: send /myid to the bot, put the number in .env, restart. Until then nobody can confirm agent trades.');
   await tg.bot.api.setMyCommands(tg.commands);
+  const webApp = process.env.WEBAPP_URL?.startsWith('https://') ? `${process.env.WEBAPP_URL.replace(/\/$/, '')}/app` : null;
+  await tg.bot.api.setChatMenuButton({ menu_button: webApp ? { type: 'web_app', text: 'Open app', web_app: { url: webApp } } : { type: 'commands' } });
+  console.log(webApp ? `Mini App: ${webApp} (chat menu button set)` : 'Mini App: set WEBAPP_URL=https://… to enable the menu button');
   await tg.bot.api.setMyDescription('Bellwether: call where US stocks go next. Pick a stock, tap long or short, and get graded against live Bitget prices. '
     + 'Earn a tier (BASE, SHARP, WOLF) on the leaderboard; the top callers lead an AI agent that paper-trades their consensus. '
     + 'Free, no deposits, not financial advice.');

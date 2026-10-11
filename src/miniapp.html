@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Bellwether</title>
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f2f8fd; --card: #ffffff; --line: #dcebf7; --soft: #e6f2fc;
+    --ink: #0b2540; --ink-2: #48607a; --ink-3: #8399ae;
+    --brand: #2b8fdc; --brand-2: #1f6fb4; --on-brand: #ffffff;
+    --pass: #0b8a4a; --pass-bg: #e3f6ec; --fail: #c0362c; --fail-bg: #fde8e6; --wash: #6b7f93; --wash-bg: #eef2f6; --pend-bg: #e6f2fc;
+    --shadow: 0 6px 24px rgb(11 37 64 / .08);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #08182a; --card: #0f2236; --line: #1d3650; --soft: #163049;
+    --ink: #eef6fd; --ink-2: #b5c9dc; --ink-3: #7f97ad;
+    --brand: #4aa8ee; --brand-2: #7cc2f5; --on-brand: #08182a;
+    --pass: #4cc27f; --pass-bg: #123426; --fail: #f07368; --fail-bg: #3a1a1a; --wash: #9fb2c4; --wash-bg: #182a3c; --pend-bg: #163049;
+    --shadow: 0 6px 24px rgb(0 0 0 / .3);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.4 -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif; }
+  body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); min-height: 100vh; }
+  header { position: sticky; top: 0; z-index: 5; background: linear-gradient(135deg, var(--card), var(--soft)); border-bottom: 1px solid var(--line);
+    padding: 12px 16px 10px; display: flex; align-items: center; gap: 10px; }
+  header img { width: 34px; height: 34px; }
+  header .t { font-weight: 750; font-size: 18px; letter-spacing: -0.01em; }
+  header .s { font-size: 12px; color: var(--ink-2); }
+  .pill { margin-left: auto; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); white-space: nowrap; }
+  .pill.open { color: var(--pass); } .pill.closed { color: var(--fail); }
+  main { padding: 12px 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
+  h2 { font-size: 16px; margin: 4px 0 10px; }
+  .muted { color: var(--ink-3); } .sub { color: var(--ink-2); font-size: 13px; }
+  .seg { display: flex; background: var(--soft); border-radius: 12px; padding: 3px; gap: 3px; margin-bottom: 10px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--ink-2); padding: 8px 6px; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 600; }
+  .seg button.on { background: var(--card); color: var(--brand-2); box-shadow: 0 1px 4px rgb(0 0 0 / .08); }
+  input.search { width: 100%; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 12px; padding: 10px 12px; font: inherit; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .tick { width: 42px; height: 42px; border-radius: 12px; background: var(--soft); color: var(--brand-2); display: grid; place-items: center; font-weight: 750; font-size: 12px; flex: none; }
+  .grow { flex: 1; min-width: 0; }
+  .grow b { display: block; } .grow span { font-size: 12px; color: var(--ink-3); }
+  .px { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .px span { display: block; font-size: 11px; color: var(--ink-3); font-weight: 500; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 750; padding: 3px 8px; border-radius: 999px; letter-spacing: .02em; }
+  .b-pass { background: var(--pass-bg); color: var(--pass); } .b-fail { background: var(--fail-bg); color: var(--fail); }
+  .b-wash { background: var(--wash-bg); color: var(--wash); } .b-pend { background: var(--pend-bg); color: var(--brand-2); }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--card); border-top: 1px solid var(--line); display: flex;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); }
+  nav button { flex: 1; border: 0; background: transparent; color: var(--ink-3); font: inherit; font-size: 11px; font-weight: 600; padding: 6px 0; border-radius: 10px; }
+  nav button i { display: block; font-style: normal; font-size: 20px; line-height: 1.2; }
+  nav button.on { color: var(--brand); background: var(--soft); }
+  .sheet-bg { position: fixed; inset: 0; background: rgb(8 24 42 / .35); z-index: 10; display: none; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; background: var(--card); border-radius: 22px 22px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+    transform: translateY(105%); transition: transform .22s ease; max-height: 88vh; overflow: auto; }
+  .sheet.on { transform: none; } .sheet-bg.on { display: block; }
+  .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
+  .dir { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+  .dir button { border: 2px solid var(--line); background: var(--card); color: var(--ink); border-radius: 16px; padding: 14px 10px; font: inherit; text-align: left; }
+  .dir button b { font-size: 17px; display: block; } .dir button span { font-size: 12px; color: var(--ink-2); display: block; font-variant-numeric: tabular-nums; }
+  .dir button.long.on { border-color: var(--pass); background: var(--pass-bg); }
+  .dir button.short.on { border-color: var(--fail); background: var(--fail-bg); }
+  .cta { width: 100%; border: 0; background: var(--brand); color: var(--on-brand); font: inherit; font-weight: 700; font-size: 16px; padding: 14px; border-radius: 14px; }
+  .cta:disabled { opacity: .45; }
+  .result { text-align: center; padding: 8px 4px; }
+  .result .big { font-size: 26px; font-weight: 800; letter-spacing: .01em; margin: 6px 0; }
+  .kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .kv div { background: var(--soft); border-radius: 12px; padding: 8px; text-align: center; font-variant-numeric: tabular-nums; }
+  .kv div span { display: block; font-size: 11px; color: var(--ink-3); }
+  .bar { height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; margin-top: 8px; }
+  .bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
+  .ring { display: flex; align-items: center; gap: 14px; }
+  .ring svg { flex: none; }
+  .stat { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .lb .row.me { background: var(--soft); border-radius: 12px; border-bottom-color: transparent; }
+  .rank { width: 26px; text-align: center; font-weight: 750; color: var(--ink-3); }
+  .empty { text-align: center; color: var(--ink-3); padding: 24px 8px; }
+  .intro { position: fixed; inset: 0; z-index: 20; background: linear-gradient(160deg, var(--card) 0%, var(--soft) 100%); display: none; flex-direction: column; padding: 32px 22px calc(24px + env(safe-area-inset-bottom)); }
+  .intro.on { display: flex; }
+  .intro img { width: 72px; height: 72px; }
+  .intro h1 { font-size: 26px; margin: 16px 0 6px; letter-spacing: -0.02em; }
+  .intro .step { flex: 1; }
+  .intro .step p { color: var(--ink-2); font-size: 15px; }
+  .dots { display: flex; gap: 6px; justify-content: center; margin: 14px 0; } .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); } .dots i.on { background: var(--brand); width: 18px; border-radius: 4px; }
+  .toast { position: fixed; left: 16px; right: 16px; top: 12px; z-index: 30; background: var(--ink); color: var(--card); padding: 10px 14px; border-radius: 12px; font-size: 14px; display: none; }
+</style>
+</head>
+<body>
+<header>
+  <img src="/assets/logo.svg" alt="">
+  <div><div class="t">Bellwether</div><div class="s">Call US stocks · earn your tier</div></div>
+  <div class="pill" id="session">…</div>
+</header>
+<main id="view"></main>
+<nav id="nav">
+  <button data-tab="trade" class="on"><i>📈</i>Trade</button>
+  <button data-tab="calls"><i>📋</i>Calls</button>
+  <button data-tab="club"><i>🏆</i>Club</button>
+  <button data-tab="me"><i>👤</i>Me</button>
+</nav>
+<div class="sheet-bg" id="sheet-bg"></div>
+<div class="sheet" id="sheet"></div>
+<div class="intro" id="intro"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+const initData = tg?.initData || '';
+if (tg) { tg.ready(); tg.expand(); document.documentElement.dataset.theme = tg.colorScheme === 'dark' ? 'dark' : 'light'; tg.onEvent?.('themeChanged', () => { document.documentElement.dataset.theme = tg.colorScheme === 'dark' ? 'dark' : 'light'; }); }
+const haptic = (k) => { try { k === 'ok' || k === 'err' ? tg.HapticFeedback.notificationOccurred(k === 'ok' ? 'success' : 'error') : tg.HapticFeedback.selectionChanged(); } catch {} };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const px = (x, ref = x) => x == null ? '–' : Number(x).toFixed(Math.min(Math.max(0, 4 - Math.floor(Math.log10(Math.abs(ref || 1)))), 6));
+const pct = (bps) => `±${(bps / 100).toFixed(2)}%`;
+const pctR = (x) => x == null || isNaN(x) ? '–' : `${Math.round(x * 100)}%`;
+const until = (t) => { const m = Math.max(0, Math.round((t - Date.now()) / 60000)); const h = Math.floor(m / 60); return h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : h ? `${h}h ${m % 60}m` : `${m}m`; };
+const ny = (t) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+
+let S = null, tab = new URLSearchParams(location.search).get('tab') || 'trade', group = 'liquid', query = '', pick = null;
+document.querySelectorAll('#nav button').forEach((x) => x.classList.toggle('on', x.dataset.tab === tab));
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json', 'x-telegram-init-data': initData, ...(opts.headers || {}) } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.display = 'none'), 2600); }
+
+async function load() {
+  try { S = await api('/api/app/state'); }
+  catch (e) { $('view').innerHTML = `<div class="card empty">${esc(e.message)}<br><br>Open Bellwether from the bot's menu button.</div>`; return; }
+  const sess = $('session');
+  sess.textContent = S.market.session.open ? '● Open' : '● Closed';
+  sess.className = 'pill ' + (S.market.session.open ? 'open' : 'closed');
+  if (!S.me.onboarded && !$('intro').classList.contains('on') && !load.introShown) { load.introShown = true; showIntro(0); }
+  render();
+}
+
+// ---------- intro ----------
+const STEPS = [
+  ['Call US stocks', 'Pick a stock and tap <b>Long</b> or <b>Short</b>. Your tap locks the live Bitget price. The house sets take-profit and stop at the same distance, so every call is a fair test.'],
+  ['Pass or fail', 'Take-profit first = <b>PASS</b>. Stop first = <b>FAILED</b>. Neither in time = no result. Boards: <b>HT</b> 2h · <b>LT</b> 8h for liquid stocks, <b>D1</b> 24h · <b>D2</b> 48h for long-term ones.'],
+  ['Join the 65% club', 'Keep your last 20 at <b>65%+</b> with 2+ calls a day and share <b>1,000 points</b> every trading day. Top callers steer an AI agent on a Bitget demo account. No deposits, not financial advice.'],
+];
+function showIntro(i) {
+  const el = $('intro'); el.classList.add('on');
+  el.innerHTML = `<img src="/assets/logo.svg" alt=""><div class="step"><h1>${STEPS[i][0]}</h1><p>${STEPS[i][1]}</p></div>
+    <div class="dots">${STEPS.map((_, j) => `<i class="${j === i ? 'on' : ''}"></i>`).join('')}</div>
+    <button class="cta" id="intro-next">${i < STEPS.length - 1 ? 'Next' : 'Start calling'}</button>`;
+  $('intro-next').onclick = async () => {
+    haptic();
+    if (i < STEPS.length - 1) return showIntro(i + 1);
+    el.classList.remove('on');
+    try { await api('/api/app/onboard', { method: 'POST', body: '{}' }); } catch {}
+  };
+}
+
+// ---------- tabs ----------
+document.querySelectorAll('#nav button').forEach((b) => b.onclick = () => {
+  tab = b.dataset.tab; haptic();
+  document.querySelectorAll('#nav button').forEach((x) => x.classList.toggle('on', x === b));
+  render(); window.scrollTo(0, 0);
+});
+
+function render() {
+  if (!S) return;
+  const v = $('view');
+  if (tab === 'trade') v.innerHTML = tradeView();
+  if (tab === 'calls') v.innerHTML = callsView();
+  if (tab === 'club') v.innerHTML = clubView();
+  if (tab === 'me') v.innerHTML = meView();
+  if (tab === 'trade') {
+    v.querySelectorAll('.seg button').forEach((b) => b.onclick = () => { group = b.dataset.g; haptic(); render(); });
+    const s = v.querySelector('.search'); s.oninput = () => { query = s.value; renderList(); }; s.value = query;
+    renderList();
+  }
+}
+
+function tradeView() {
+  return `<div class="card" style="padding:12px">
+    <div class="sub" style="margin-bottom:10px">${esc(S.market.session.line)}</div>
+    <div class="seg"><button data-g="liquid" class="${group === 'liquid' ? 'on' : ''}">⚡ Liquid · HT / LT</button><button data-g="long" class="${group === 'long' ? 'on' : ''}">🕰 Long-term · D1 / D2</button></div>
+    <input class="search" placeholder="Search NVDA, Tesla…" autocomplete="off">
+    <div id="list"></div></div>`;
+}
+function renderList() {
+  const title = Object.fromEntries(S.market.boards.map((b) => [b.id, b.title]));
+  const q = query.trim().toLowerCase();
+  const rows = S.market.pairs.filter((p) => p.group === group && (!q || p.label.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)));
+  $('list').innerHTML = rows.map((p) => `<div class="row" data-p="${p.symbol}">
+      <div class="tick">${esc(p.label)}</div>
+      <div class="grow"><b>${esc(p.name)}</b><span>${p.boards.map((b) => `${title[b.id]} ${b.listed && b.bps ? pct(b.bps) : '—'}`).join(' · ')}</span></div>
+      <div class="px">${px(p.price)}<span>USDT</span></div></div>`).join('') || '<div class="empty">No match</div>';
+  $('list').querySelectorAll('.row').forEach((r) => r.onclick = () => openSheet(r.dataset.p));
+}
+
+// ---------- call sheet ----------
+function openSheet(symbol) {
+  haptic();
+  const p = S.market.pairs.find((x) => x.symbol === symbol);
+  const usable = p.boards.filter((b) => b.listed && b.bps && !b.weekendBlocked);
+  pick = { p, board: usable[0]?.id ?? p.boards[0].id, direction: null };
+  drawSheet();
+  $('sheet').classList.add('on'); $('sheet-bg').classList.add('on');
+  tg?.BackButton?.show();
+}
+function closeSheet() {
+  $('sheet').classList.remove('on'); $('sheet-bg').classList.remove('on'); pick = null;
+  tg?.BackButton?.hide(); tg?.MainButton?.hide();
+}
+$('sheet-bg').onclick = closeSheet;
+tg?.BackButton?.onClick(closeSheet);
+
+function drawSheet(result) {
+  const { p } = pick;
+  const meta = Object.fromEntries(S.market.boards.map((b) => [b.id, b]));
+  if (result) {
+    const ok = result.accepted, c = result.call;
+    $('sheet').innerHTML = `<div class="grab"></div><div class="result">
+      <div style="font-size:44px">${ok ? '✅' : '🚫'}</div>
+      <div class="big" style="color:var(${ok ? '--pass' : '--fail'})">${ok ? 'ACCEPTED' : 'NOT ACCEPTED'}</div>
+      ${ok ? `<div class="sub">${esc(c.label)} ${c.direction.toUpperCase()} · ${c.boardTitle} · result by ${ny(c.expiresAt)} NY</div>
+        <div class="kv"><div><span>Entry</span>${px(c.entry)}</div><div><span>Take-profit</span>${px(c.target, c.entry)}</div><div><span>Stop</span>${px(c.stop, c.entry)}</div></div>
+        <p class="sub">You'll get <b>PASS</b> or <b>FAILED</b> in the bot chat. Sealed <span class="muted">${c.hash.slice(0, 10)}…</span></p>`
+      : `<p class="sub" style="font-size:15px">${esc(result.reason)}</p>`}
+      <button class="cta" id="done">${ok ? 'Done' : 'Back'}</button></div>`;
+    $('done').onclick = () => { closeSheet(); if (ok) { tab = 'calls'; document.querySelectorAll('#nav button').forEach((x) => x.classList.toggle('on', x.dataset.tab === 'calls')); } load(); };
+    tg?.MainButton?.hide();
+    return;
+  }
+  const b = p.boards.find((x) => x.id === pick.board);
+  const d = b?.bps && p.price ? p.price * b.bps / 1e4 : null;
+  const notes = p.boards.filter((x) => !x.listed || x.weekendBlocked).map((x) => `${meta[x.id].title}: ${x.weekendBlocked ? 'would run into the weekend' : 'not listed'}`);
+  $('sheet').innerHTML = `<div class="grab"></div>
+    <div class="row" style="border:0;padding-top:0"><div class="tick">${esc(p.label)}</div><div class="grow"><b>${esc(p.name)}</b><span>Price at your tap becomes the entry</span></div><div class="px">${px(p.price)}<span>USDT</span></div></div>
+    <div class="seg">${p.boards.map((x) => `<button data-b="${x.id}" class="${x.id === pick.board ? 'on' : ''}" ${!x.listed || x.weekendBlocked ? 'disabled style="opacity:.4"' : ''}>${meta[x.id].title} · ${meta[x.id].hours}h${x.bps ? ` · ${pct(x.bps)}` : ''}</button>`).join('')}</div>
+    <div class="dir">
+      <button class="long ${pick.direction === 'long' ? 'on' : ''}" data-d="long"><b>⬆️ Long</b><span>TP ${d ? px(p.price + d, p.price) : '–'}</span><span>SL ${d ? px(p.price - d, p.price) : '–'}</span></button>
+      <button class="short ${pick.direction === 'short' ? 'on' : ''}" data-d="short"><b>⬇️ Short</b><span>TP ${d ? px(p.price - d, p.price) : '–'}</span><span>SL ${d ? px(p.price + d, p.price) : '–'}</span></button>
+    </div>
+    ${notes.length ? `<p class="sub">${notes.map(esc).join(' · ')}</p>` : ''}
+    <p class="sub">Expires in ${meta[pick.board].hours} hours · ${S.market.session.open ? 'no take-backs once locked' : esc(S.market.session.line)}</p>
+    <button class="cta" id="lock" ${pick.direction && S.market.session.open ? '' : 'disabled'}>${pick.direction ? `🔒 Lock ${esc(p.label)} ${pick.direction.toUpperCase()} ${meta[pick.board].title}` : 'Choose Long or Short'}</button>`;
+  $('sheet').querySelectorAll('.seg button').forEach((x) => x.onclick = () => { if (x.disabled) return; pick.board = x.dataset.b; haptic(); drawSheet(); });
+  $('sheet').querySelectorAll('.dir button').forEach((x) => x.onclick = () => { pick.direction = x.dataset.d; haptic(); drawSheet(); });
+  $('lock').onclick = lock;
+}
+async function lock() {
+  const btn = $('lock'); btn.disabled = true; btn.textContent = 'Locking at the live price…';
+  try {
+    const r = await api('/api/app/call', { method: 'POST', body: JSON.stringify({ pair: pick.p.symbol, board: pick.board, direction: pick.direction }) });
+    haptic(r.accepted ? 'ok' : 'err');
+    drawSheet(r);
+  } catch (e) { haptic('err'); drawSheet({ accepted: false, reason: e.message }); }
+}
+
+// ---------- calls ----------
+function callsView() {
+  if (!S.calls.length) return `<div class="card empty">No calls yet.<br><br><button class="cta" onclick="document.querySelector('[data-tab=trade]').click()">Make your first call</button></div>`;
+  const cls = { PASS: 'b-pass', FAILED: 'b-fail', 'NO RESULT': 'b-wash', PENDING: 'b-pend' };
+  return `<div class="card"><h2>Your calls</h2>${S.calls.map((c) => {
+    const span = c.expiresAt - c.lockedAt, done = Math.min(1, (Date.now() - c.lockedAt) / span);
+    return `<div class="row" style="flex-wrap:wrap">
+      <div class="tick">${esc(c.label)}</div>
+      <div class="grow"><b>${c.direction === 'long' ? '⬆️' : '⬇️'} ${c.direction.toUpperCase()} · ${c.boardTitle}</b>
+        <span>${px(c.entry)} → TP ${px(c.target, c.entry)} / SL ${px(c.stop, c.entry)}</span></div>
+      <div class="px"><span class="badge ${cls[c.result]}">${c.result}</span><span>${c.status === 'open' ? `in ${until(c.expiresAt)}` : new Date(c.resolvedAt).toLocaleDateString()}</span></div>
+      ${c.status === 'open' ? `<div class="bar" style="flex-basis:100%"><i style="width:${(done * 100).toFixed(0)}%"></i></div>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ---------- club ----------
+function ringSvg(frac, ok) {
+  const r = 34, c = 2 * Math.PI * r;
+  return `<svg width="88" height="88" viewBox="0 0 88 88"><circle cx="44" cy="44" r="${r}" fill="none" stroke="var(--soft)" stroke-width="9"/>
+    <circle cx="44" cy="44" r="${r}" fill="none" stroke="var(${ok ? '--pass' : '--brand'})" stroke-width="9" stroke-linecap="round"
+      stroke-dasharray="${(c * Math.min(1, frac)).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 44 44)"/></svg>`;
+}
+function clubView() {
+  const k = S.me.club, rate = k.n ? k.wins / k.n : 0;
+  const counted = k.n >= k.rolling;
+  return `<div class="card"><h2>🏆 65% club</h2>
+    <div class="ring">${ringSvg(counted ? rate / k.minRate : k.n / k.rolling, k.onTrack)}
+      <div><div class="stat">${k.wins}<span class="muted" style="font-size:16px">/${k.n}</span></div>
+      <div class="sub">${counted ? `last ${k.rolling}: ${pctR(rate)} · need ${k.need} passes` : `${k.rolling - k.n} more results until you're counted`}</div>
+      <div class="sub">Today: ${k.calls}/${k.minCalls} calls ${k.onTrack ? '· <b style="color:var(--pass)">on track ✅</b>' : ''}</div></div></div>
+    <div class="kv"><div><span>Points 7d</span>${Math.round(k.points7d)}</div><div><span>All-time</span>${Math.round(k.pointsAll)}</div><div><span>Streak</span>${k.streak ? '🔥' + k.streak : '–'}</div></div>
+    <p class="sub">Every trading day at midnight New York, qualifiers share ${k.pool.toLocaleString()} points by that day's passes × tier.</p></div>
+    <div class="card lb"><h2>This week</h2>${S.club.length ? S.club.map((r) => `<div class="row ${r.me ? 'me' : ''}">
+      <div class="rank">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</div>
+      <div class="grow"><b>${esc(r.name)}${r.me ? ' (you)' : ''}</b><span>last 20: ${r.rolling}${r.streak ? ` · 🔥${r.streak}` : ''}</span></div>
+      <div class="px">${Math.round(r.points7d)}<span>pts</span></div></div>`).join('') : '<div class="empty">No one yet. Be first.</div>'}</div>`;
+}
+
+// ---------- me ----------
+function meView() {
+  const badge = { WOLF: '🐺 WOLF', SHARP: '🎯 SHARP', BASE: '✅ BASE' };
+  return `<div class="card"><h2>${esc(S.me.name)}</h2><div class="sub">Rename with /name in the bot chat.</div></div>
+    ${S.me.boards.map((b) => `<div class="card">
+      <div class="row" style="border:0;padding:0"><div class="tick">${b.title}</div>
+        <div class="grow"><b>${b.tier ? badge[b.tier] : b.status === 'eliminated' ? '⛔ eliminated' : b.qualified ? 'Qualified' : 'Not qualified yet'}</b>
+        <span>${b.wins} pass · ${b.losses} failed · ${b.washes} no result${b.open ? ` · ${b.open} open` : ''}</span></div>
+        <div class="px">${pctR(b.hitRate)}<span>hit</span></div></div>
+      ${!b.qualified ? `<div class="bar"><i style="width:${Math.min(100, (1 - b.need / 8) * 100)}%"></i></div><div class="sub" style="margin-top:6px">${b.need ? `${b.need} more results, then` : 'Next:'} 90% confidence you beat a coin flip (now ${pctR(b.lb)})</div>` : ''}
+      ${b.copier ? '<div class="sub" style="color:var(--fail)">⚠️ Flagged for copying one trader: copied passes count as failed.</div>' : ''}
+    </div>`).join('')}
+    <div class="card sub">Tiers: ✅ BASE 55% · 🎯 SHARP 60% · 🐺 WOLF 70% (2× share). Hit rate is pulled toward 50% until you have enough calls, so luck can't top the board.</div>`;
+}
+
+load().then(() => { const o = new URLSearchParams(location.search).get('open'); if (o && S) { openSheet(o); const d = new URLSearchParams(location.search).get('dir'); if (d) { pick.direction = d; drawSheet(); } } });
+setInterval(() => { if (!pick) load(); }, 15000);
+</script>
+</body>
+</html>

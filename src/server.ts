@@ -7,6 +7,7 @@ import { leaderboard } from './scoring.js';
 import { BOARDS, BOARD_IDS, PAIRS, REWARDS } from './config.js';
 import { rewardBoard, ensureRewardsTable } from './rewards.js';
 import { sessionLine } from './sessions.js';
+import { handleMiniApp } from './miniapp.js';
 
 const dbs = new Map<string, DB>();
 const dbFor = (name: string) => {
@@ -43,9 +44,14 @@ function state(which: string) {
 }
 
 export function startDashboard(port: number) {
-  createServer((req, res) => {
+  createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
     try {
+      if (await handleMiniApp(dbFor('live'), req, res, url.pathname)) return;
+      if (url.pathname === '/app' || url.pathname === '/app/') {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+        return res.end(readFileSync(new URL('./miniapp.html', import.meta.url)));
+      }
       if (url.pathname === '/api/state') {
         res.writeHead(200, { 'content-type': 'application/json' });
         return res.end(JSON.stringify(state(url.searchParams.get('db') ?? 'live')));
@@ -63,9 +69,9 @@ export function startDashboard(port: number) {
       }
       res.writeHead(404).end();
     } catch (e) {
-      res.writeHead(500).end(String(e));
+      if (!res.headersSent) res.writeHead(500).end(String(e));
     }
-  }).listen(port, () => console.log(`Dashboard on http://localhost:${port}  (simulated: /?db=sim)`));
+  }).listen(port, () => console.log(`Dashboard on http://localhost:${port}  (simulated: /?db=sim) · Mini App at /app`));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) startDashboard(Number(process.env.DASHBOARD_PORT ?? 8787));
