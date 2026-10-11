@@ -54,7 +54,8 @@ test('two-tap call: stock, then Long/Short per board; the tap locks', async () =
   assert.deepEqual(buttons(last()).filter((b: string) => b.startsWith('k:')),
     ['k:NVDAUSDT:intraday:long', 'k:NVDAUSDT:intraday:short', 'k:NVDAUSDT:swing:long', 'k:NVDAUSDT:swing:short']);
   const labels = last().reply_markup.inline_keyboard.flat().map((b: any) => b.text);
-  assert.ok(labels.includes('⬆️ Long 8h ±1.13%'));
+  assert.ok(labels.includes('⬆️ Long LT ±1.13%'));
+  assert.ok(labels.includes('⬇️ Short HT ±0.54%'));
   await tap('p:SPYUSDT');
   assert.match(last().text, /not listed/);
   assert.equal(buttons(last()).filter((b: string) => b.startsWith('k:')).length, 0);
@@ -63,9 +64,17 @@ test('two-tap call: stock, then Long/Short per board; the tap locks', async () =
   assert.ok(buttons(last()).includes('k:NVDAUSDT:swing:long'));
 });
 
+test('/pairs lists every tradable stock with HT and LT bands', async () => {
+  await text('/pairs');
+  assert.match(last().text, /Stocks you can trade \(15\)/);
+  for (const t of ['NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'AMD', 'MU', 'AVGO', 'PLTR', 'MSTR', 'COIN', 'QQQ', 'SPY']) assert.match(last().text, new RegExp(`<b>${t}</b>`));
+  assert.match(last().text, /HT ±0\.54% · LT ±1\.13%/);
+  assert.ok(buttons(last()).includes('p:SPYUSDT'));
+});
+
 test('stats and leaderboard show both boards', async () => {
   await text('/stats');
-  assert.match(last().text, /Intraday \(2h\)[\s\S]*Swing \(8h\)/);
+  assert.match(last().text, /<b>HT<\/b>[\s\S]*<b>LT<\/b>/);
   assert.match(last().text, /8 more wins\+losses needed/);
   await text('/leaderboard');
   assert.match(last().text, /No calls yet/);

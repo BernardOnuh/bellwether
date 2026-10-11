@@ -28,10 +28,10 @@ export const CATEGORY = 'USDT-FUTURES';
 
 const num = (k: string, d: number) => (process.env[k] ? Number(process.env[k]) : d);
 
-/** Two boards, scored separately. Traders pick pair + direction; the board fixes band and horizon. */
+/** Two boards, scored separately: HT (2-hour calls) and LT (8-hour calls). Traders pick pair + direction; the board fixes band and horizon. */
 export const BOARDS: Record<BoardId, { id: BoardId; title: string; horizonMin: number; dailyCap: number; minGapMin: number }> = {
-  intraday: { id: 'intraday', title: 'Intraday (2h)', horizonMin: 120, dailyCap: 10, minGapMin: 10 },
-  swing: { id: 'swing', title: 'Swing (8h)', horizonMin: 480, dailyCap: 3, minGapMin: 60 },
+  intraday: { id: 'intraday', title: 'HT', horizonMin: 120, dailyCap: 10, minGapMin: 10 },
+  swing: { id: 'swing', title: 'LT', horizonMin: 480, dailyCap: 3, minGapMin: 60 },
 };
 export const BOARD_IDS = Object.keys(BOARDS) as BoardId[];
 

@@ -14,7 +14,7 @@ const pct = (x: number) => (Number.isFinite(x) ? `${(x * 100).toFixed(0)}%` : '�
 const bandPct = (bps: number) => `±${(bps / 100).toFixed(2)}%`;
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
 const etTime = (t: number) => new Date(t).toLocaleString('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit' }) + ' ET';
-const short = (b: BoardId) => (BOARDS[b].horizonMin >= 60 ? `${BOARDS[b].horizonMin / 60}h` : `${BOARDS[b].horizonMin}m`);
+const short = (b: BoardId) => BOARDS[b].title;   // HT / LT
 const HTML = { parse_mode: 'HTML' as const };
 
 interface Trader { id: number; name: string; onboarded_at: number | null }
@@ -40,7 +40,7 @@ function statusLine(s: TraderStats) {
 const menu = () => new InlineKeyboard()
   .text('📈 Make a call', 'm:call').text('📋 My calls', 'm:mycalls').row()
   .text('🏆 Leaderboard', 'm:leaderboard').text('📊 My stats', 'm:stats').row()
-  .text('💹 Stocks & bands', 'm:board').text('📖 Rules', 'm:rules');
+  .text('💹 All pairs', 'm:pairs').text('📖 Rules', 'm:rules');
 
 /** Leaderboard names: 3–24 chars, letters/digits/space/_ . -, not reserved for simulated traders, unique. */
 export function validateName(db: DB, name: string, selfId?: number): string | null {
@@ -85,10 +85,10 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     '<b>How it works</b>',
     '• Pick a stock and tap <b>Long</b> or <b>Short</b> on one of two boards. Your tap locks the live Bitget price. No take-backs.',
     `• The house sets take-profit and stop-loss: the same distance both ways (1:1), sized to how far that stock usually moves. `
-      + `<b>Intraday</b> calls last ${short('intraday')}, <b>Swing</b> calls ${short('swing')}.`,
+      + '<b>HT</b> calls last 2 hours, <b>LT</b> calls last 8 hours.',
     '• ✅ take-profit first = win · ❌ stop first = loss · ➖ neither by expiry = wash (doesn\'t count).',
-    `• Calls open Mon–Fri 04:00–16:00 New York time. Limits: Intraday ${BOARDS.intraday.dailyCap}/day (${BOARDS.intraday.minGapMin} min apart), `
-      + `Swing ${BOARDS.swing.dailyCap}/day (${BOARDS.swing.minGapMin} min apart), one open call per stock per board.`,
+    `• Calls open Mon–Fri 04:00–16:00 New York time. Limits: HT ${BOARDS.intraday.dailyCap}/day (${BOARDS.intraday.minGapMin} min apart), `
+      + `LT ${BOARDS.swing.dailyCap}/day (${BOARDS.swing.minGapMin} min apart), one open call per stock per board.`,
     '',
     `<b>🏆 Daily rewards — the ${pctN(REWARDS.minRate)} club</b>`,
     `• Every trading day at midnight New York, you earn a share of <b>${REWARDS.dailyPool.toLocaleString()} points</b> if your last `
@@ -107,27 +107,27 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
 
   const helpText = [
     '<b>Commands</b>',
-    '/call — make a call (or <code>/call NVDA long 8h</code>)',
+    '/pairs — all stocks you can trade, with prices and bands',
+    '/call — make a call (or <code>/call NVDA long LT</code>)',
     '/mycalls — your recent calls',
     '/stats — your tier, points and progress',
     '/leaderboard — daily rewards: the 65% club',
     '/tiers — tiers on each board',
-    '/board — stocks, bands and market hours',
     '/rules — how scoring works',
     '/name — change your leaderboard name',
   ].join('\n');
 
   function exampleLine() {
     const q = loadQuote(db, 'NVDAUSDT'), b = loadBand(db, 'NVDAUSDT', 'swing');
-    if (!q || !b) return 'Example: NVDA long on Swing → take-profit about 1% above entry, stop 1% below, 8 hours to get there.';
+    if (!q || !b) return 'Example: NVDA long LT → take-profit about 1% above entry, stop 1% below, 8 hours to get there.';
     const d = (q.price * b.bps) / 1e4;
-    return `Example right now: NVDA is ${fmt(q.price, q.price)}. A <b>Swing long</b> takes profit at ${fmt(q.price + d, q.price)} `
-      + `and stops at ${fmt(q.price - d, q.price)} (${bandPct(b.bps)}), with ${short('swing')} to get there.`;
+    return `Example right now: NVDA is ${fmt(q.price, q.price)}. A <b>long LT</b> call takes profit at ${fmt(q.price + d, q.price)} `
+      + `and stops at ${fmt(q.price - d, q.price)} (${bandPct(b.bps)}), with 8 hours to get there.`;
   }
 
   const TUTORIAL = [
     () => '<b>1/3 · Making a call</b>\n\nPick a stock, then tap <b>Long</b> (up) or <b>Short</b> (down) on the '
-      + `<b>Intraday</b> (${short('intraday')}) or <b>Swing</b> (${short('swing')}) board. That's it: two taps.\n\n`
+      + '<b>HT</b> (2 hours) or <b>LT</b> (8 hours). That\'s it: two taps.\n\n'
       + 'Your tap locks the live price. The house sets take-profit and stop at the same distance, so every call is an equal test of skill.\n\n'
       + exampleLine(),
     () => '<b>2/3 · How you earn</b>\n\n✅ take-profit first = win · ❌ stop first = loss · ➖ neither = wash (doesn\'t count)\n\n'
@@ -197,7 +197,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     await ctx.answerCallbackQuery({ text: 'Welcome aboard!' });
     await ctx.editMessageReplyMarkup();
     await ctx.reply(`🎉 You're in, <b>${esc(t.name)}</b>.\n${sessionLine(Date.now())}\n\n${helpText}`, {
-      ...HTML, reply_markup: new InlineKeyboard().text('📈 Make my first call', 'm:call').row().text('💹 See stocks & bands', 'm:board'),
+      ...HTML, reply_markup: new InlineKeyboard().text('📈 Make my first call', 'm:call').row().text('💹 See all pairs', 'm:pairs'),
     });
   });
 
@@ -226,21 +226,28 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   bot.command('rules', (ctx) => ctx.reply(rulesText(), HTML));
 
   // ---------- views ----------
-  async function showBoard(ctx: Context) {
+  /** Every stock you can trade, with live price and the HT / LT take-profit/stop distance. */
+  async function showPairs(ctx: Context) {
     const lines = PAIRS.map((p) => {
       const q = loadQuote(db, p.symbol);
-      const bands = BOARD_IDS.map((b) => { const x = loadBand(db, p.symbol, b); return x?.listed ? `${short(b)} ${bandPct(x.bps)}` : `${short(b)} –`; });
-      return `<b>${p.label}</b> ${q ? fmt(q.price, q.price) : '…'} · ${bands.join(' · ')}`;
+      const bands = BOARD_IDS.map((b) => { const x = loadBand(db, p.symbol, b); return `${short(b)} ${x?.listed ? bandPct(x.bps) : '—'}`; });
+      return `<b>${p.label}</b> ${esc(p.name)} · ${q ? fmt(q.price, q.price) : '…'}\n   ${bands.join(' · ')}`;
     });
-    await ctx.reply(`${sessionLine(Date.now())}\n\n${lines.join('\n')}\n\nBands are the take-profit/stop distance. They're recalibrated daily from the last 30 days.`, HTML);
+    await ctx.reply(`<b>Stocks you can trade (${PAIRS.length})</b>\n${sessionLine(Date.now())}\n\n${lines.join('\n')}\n\n`
+      + 'HT = 2-hour calls · LT = 8-hour calls. ± is the take-profit and stop distance, recalibrated daily. Tap a stock to call it:',
+      { ...HTML, reply_markup: pairKeyboard() });
   }
+
+  const pairKeyboard = () => {
+    const kb = new InlineKeyboard();
+    PAIRS.forEach((pp, i) => { kb.text(pp.label, `p:${pp.symbol}`); if (i % 5 === 4) kb.row(); });
+    return kb;
+  };
 
   async function showPairPicker(ctx: Context) {
     const now = Date.now();
     if (!sessionOpen(now)) return ctx.reply(`${sessionLine(now)}\n\nMeanwhile: /leaderboard · /stats · /board`);
-    const kb = new InlineKeyboard();
-    PAIRS.forEach((pp, i) => { kb.text(pp.label, `p:${pp.symbol}`); if (i % 5 === 4) kb.row(); });
-    kb.row().text('Cancel', 'cancel');
+    const kb = pairKeyboard().row().text('📋 All pairs with prices', 'm:pairs').text('Cancel', 'cancel');
     await ctx.reply(`${sessionLine(now)}\nPick a stock:`, { reply_markup: kb });
   }
 
@@ -258,7 +265,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     kb.text('← Stocks', 'm:call').text('Cancel', 'cancel');
     const text = `<b>${label(pair)}</b> · ${esc(pairBySymbol(pair)!.name)}${q ? ` · ${fmt(q.price, q.price)}` : ''}\n\n`
       + 'Tap a button to <b>lock at the live price</b>. No take-backs.\n'
-      + `Intraday expires in ${short('intraday')}, Swing in ${short('swing')}.` + (notes.length ? `\n\n${notes.join('\n')}` : '');
+      + 'HT expires in 2 hours, LT in 8 hours.' + (notes.length ? `\n\n${notes.join('\n')}` : '');
     if (ctx.callbackQuery) await ctx.editMessageText(text, { ...HTML, reply_markup: kb });
     else await ctx.reply(text, { ...HTML, reply_markup: kb });
   }
@@ -323,7 +330,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   // ---------- call flow ----------
   // /call             -> stock picker, then Long/Short per board (the tap locks)
   // /call NVDA         -> straight to the Long/Short buttons
-  // /call NVDA long 8h -> locks immediately
+  // /call NVDA long LT -> locks immediately (HT = 2h, LT = 8h)
   bot.command('call', async (ctx) => {
     const t = await requireOnboarded(ctx);
     if (!t) return;
@@ -333,8 +340,8 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     if (!pair) return ctx.reply(`Unknown stock "${esc(p)}". Try one of: ${PAIRS.map((x) => x.label).join(', ')}`);
     if (!d) return sessionOpen(Date.now()) ? showDirection(ctx, pair.symbol) : ctx.reply(sessionLine(Date.now()));
     const dir = d.toLowerCase().startsWith('l') ? 'long' : d.toLowerCase().startsWith('s') ? 'short' : null;
-    const board = !h || /^(8h|swing|s)$/i.test(h) ? 'swing' : /^(2h|intraday|i)$/i.test(h) ? 'intraday' : null;
-    if (!dir || !board) return ctx.reply('Usage: /call NVDA long 8h   (or 2h)');
+    const board = !h || /^(lt|8h|swing)$/i.test(h) ? 'swing' : /^(ht|2h|intraday)$/i.test(h) ? 'intraday' : null;
+    if (!dir || !board) return ctx.reply('Usage: /call NVDA long LT   (or HT)');
     await lock(ctx, t, pair.symbol, board, dir);
   });
 
@@ -358,15 +365,15 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   bot.command('leaderboard', (ctx) => {
     const a = ctx.match.trim().toLowerCase();
     if (!a) return showRewards(ctx);
-    return showLeaderboard(ctx, a.startsWith('i') || a === '2h' ? 'intraday' : a.startsWith('s') || a === '8h' ? 'swing' : undefined);
+    return showLeaderboard(ctx, a === 'ht' || a === '2h' ? 'intraday' : a === 'lt' || a === '8h' ? 'swing' : undefined);
   });
   bot.command('tiers', (ctx) => showLeaderboard(ctx));
-  bot.command(['board', 'pairs'], showBoard);
+  bot.command(['pairs', 'board'], showPairs);
 
   bot.callbackQuery(/^m:(\w+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const v = ctx.match[1];
-    if (v === 'board') return showBoard(ctx);
+    if (v === 'pairs' || v === 'board') return showPairs(ctx);
     if (v === 'leaderboard') return showRewards(ctx);
     if (v === 'tiers') return showLeaderboard(ctx);
     if (v === 'rules') return ctx.reply(rulesText(), HTML);
@@ -412,12 +419,12 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   return {
     bot,
     commands: [
-      { command: 'call', description: 'Call a stock: long or short, 2h or 8h' },
+      { command: 'pairs', description: 'All stocks you can trade' },
+      { command: 'call', description: 'Call a stock: long or short, HT or LT' },
       { command: 'mycalls', description: 'Your recent calls' },
       { command: 'stats', description: 'Your tier, points and progress' },
       { command: 'leaderboard', description: 'Daily rewards leaderboard (65% club)' },
       { command: 'tiers', description: 'Tiers on each board' },
-      { command: 'board', description: 'Stocks, bands and market hours' },
       { command: 'rules', description: 'How scoring works' },
       { command: 'name', description: 'Change your leaderboard name' },
       { command: 'help', description: 'All commands' },
@@ -426,7 +433,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
       const tg = (db.prepare('SELECT tg_id FROM traders WHERE id = ?').get(c.trader_id) as { tg_id: string | null })?.tg_id;
       if (!tg) return;
       const s = boardStats(db, c.board, Date.now()).get(c.trader_id)!;
-      const text = `${describeCall(c)}\n${BOARDS[c.board].title}: ${statusLine(s)} · ${s.wins}W ${s.losses}L · ${s.points.toFixed(2)} pts`
+      const text = `${describeCall(c)}\n${BOARDS[c.board].title}: ${statusLine(s)} · ${s.wins}W ${s.losses}L`
         + `\n🔓 Revealed: salt <code>${c.salt}</code> (hash <code>${c.commit_hash.slice(0, 12)}</code>)`;
       await bot.api.sendMessage(tg, text, { ...HTML, reply_markup: new InlineKeyboard().text('📈 Call again', 'm:call') }).catch(() => {});
     },
