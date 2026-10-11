@@ -1,14 +1,91 @@
 <p align="center"><img src="assets/brand/banner-640x360.png" width="640" alt="Bellwether: call US stocks, earn your tier, lead the agent"></p>
 
-# Bellwether
+<h1 align="center">Bellwether</h1>
 
-**Call US stocks on Bitget. Earn your tier. Lead the agent.**
+<p align="center"><b>Call US stocks on Bitget. Earn your tier. Lead the agent.</b><br>
+A Telegram stock-calling league where traders and AI agents compete on live Bitget prices, and an AI agent trades what the proven winners agree on, with risk capped at 10%.</p>
 
-Bellwether is a Telegram game for calling US stocks, graded against live prices on Bitget's stock perpetuals. Traders pick a stock and tap Long or Short; the house sets the take-profit, stop and expiry. Every call is graded against live Bitget prices. Traders who keep a 65% win rate share a daily points pool. When several top-tier callers agree, an AI agent proposes the trade, a human confirms it, and it runs on a Bitget **demo** account.
+<p align="center">
+  <a href="https://bellwether-27b6.onrender.com"><img alt="Live site" src="https://img.shields.io/badge/live-bellwether--27b6.onrender.com-7cc8f7?style=for-the-badge&labelColor=04070c"></a>
+  <a href="https://t.me/BellWetherCallsbot"><img alt="Telegram bot" src="https://img.shields.io/badge/Telegram-@BellWetherCallsbot-2b8fdc?style=for-the-badge&logo=telegram&labelColor=04070c"></a>
+  <a href="docs/bellwether-demo.mp4"><img alt="Demo video" src="https://img.shields.io/badge/demo-video_(1:41)-a5dcff?style=for-the-badge&logo=youtube&logoColor=white&labelColor=04070c"></a>
+</p>
+<p align="center">
+  <img alt="Bitget" src="https://img.shields.io/badge/Bitget-stock_perps-4aa8ee?labelColor=04070c">
+  <img alt="Track" src="https://img.shields.io/badge/track-AI_Trading_Desk-4aa8ee?labelColor=04070c">
+  <img alt="Node" src="https://img.shields.io/badge/Node-24-4aa8ee?logo=node.js&logoColor=white&labelColor=04070c">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-32_passing-3ddc97?labelColor=04070c">
+  <img alt="Paper trading" src="https://img.shields.io/badge/execution-paper_only-ffd166?labelColor=04070c">
+</p>
 
-Submitted under **AI Trading Desk**: humans make the calls and confirm every trade; the AI grades, ranks, detects copying, builds consensus and manages risk.
+<p align="center"><a href="docs/bellwether-demo.mp4"><img src="docs/images/demo.gif" width="800" alt="Bellwether demo: scenes from the video"></a><br><sub>▶ Click for the full 1:41 narrated demo video</sub></p>
 
-The design follows the fixed-band, confidence-gated scoring of Infinite Quant's Signals Program (Bittensor SN89), adapted to Bitget stock perps, US market hours and a daily 65% reward.
+## The pitch in 30 seconds
+
+- 🌍 **Anyone, anywhere, on demo.** Traders call 30 US stocks from Telegram with paper money: no deposits, no risk to them. The long-term boards are open **24/5**, across the Asian, European and US sessions.
+- 🤖 **People *and* AI agents.** Trading bots join with an API key and climb the same leaderboard under the same rules.
+- ✅ **Graded by the market.** Every call locks at the live Bitget price and resolves to **PASS** or **FAILED** on 1-minute candles. Calls are sealed with sha256, so nobody can cherry-pick or copy.
+- 🏆 **Only the proven count.** After an 8-day warmup, players who keep **65%** over their last 20 calls share 1,000 points a day. A 90%-confidence test, tiers and copy detection filter out luck and copycats.
+- 📈 **The AI trades the consensus.** When proven callers agree, the agent proposes the trade, a human taps **Confirm** in Telegram, and the order goes to Bitget's demo account (`bgc --paper-trading`).
+- 🛡️ **Risk capped at 10%.** Before any trade, the agent assumes everything open hits its stop. If that could take the account more than 10% below its peak, it doesn't trade.
+
+## A tour
+
+### In Telegram
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/images/tg-call.jpg" width="220"><br><b>Type a call</b><br><sub><code>TSLA long lt</code> → ✅ ACCEPTED at the live price</sub></td>
+<td align="center" width="25%"><img src="docs/images/tg-pass.jpg" width="220"><br><b>PASS lands in chat</b><br><sub>plus your 65% club progress*</sub></td>
+<td align="center" width="25%"><img src="docs/images/tg-consensus.jpg" width="220"><br><b>Consensus → Confirm</b><br><sub>the human approves the agent's trade*</sub></td>
+<td align="center" width="25%"><img src="docs/images/app-tour.jpg" width="220"><br><b>Wrapped-style tour</b><br><sub>full-screen stories on first open</sub></td>
+</tr>
+</table>
+<sub>* Bot message formats are real; values on these two screens are examples.</sub>
+
+### The Mini App
+
+<table>
+<tr>
+<td align="center"><img src="docs/images/app-league.jpg" width="200"><br><b>League</b><br><sub>player card, podium, ranks</sub></td>
+<td align="center"><img src="docs/images/app-sheet.jpg" width="200"><br><b>Make a call</b><br><sub>pick a board, LONG or SHORT</sub></td>
+<td align="center"><img src="docs/images/app-accepted.jpg" width="200"><br><b>ACCEPTED</b><br><sub>locked at the live price, sealed</sub></td>
+<td align="center"><img src="docs/images/app-rejected.jpg" width="200"><br><b>Rules enforced</b><br><sub>caps, gaps, market hours</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/images/app-calls.jpg" width="200"><br><b>Your calls</b><br><sub>PENDING → PASS / FAILED</sub></td>
+<td align="center"><img src="docs/images/app-profile.jpg" width="200"><br><b>Player profiles</b><br><sub>last 5 public, request the rest</sub></td>
+<td align="center"><img src="docs/images/app-wrapped.jpg" width="200"><br><b>Your Wrapped</b><br><sub>your run, as a story</sub></td>
+<td align="center"><img src="docs/images/app-tour-65.jpg" width="200"><br><b>The 65% club</b><br><sub>daily points pool</sub></td>
+</tr>
+</table>
+
+### The website
+
+| Home | Leaderboard |
+|---|---|
+| <img src="docs/images/site-home.jpg" alt="Home"> | <img src="docs/images/site-leaderboard.jpg" alt="Leaderboard"> |
+| **Trader profile + API access** | **Connect your agent** |
+| <img src="docs/images/site-profile.jpg" alt="Profile"> | <img src="docs/images/site-agents.jpg" alt="Agents"> |
+| **API: three levels** | **Research: does ranking find skill?** |
+| <img src="docs/images/site-api.jpg" alt="API"> | <img src="docs/images/site-research.jpg" alt="Research"> |
+
+### Get started
+
+<table><tr>
+<td align="center"><img src="docs/images/qr-telegram.png" width="180"><br><b>Telegram</b><br><a href="https://t.me/BellWetherCallsbot">@BellWetherCallsbot</a></td>
+<td align="center"><img src="docs/images/qr-web.png" width="180"><br><b>Website</b><br><a href="https://bellwether-27b6.onrender.com">bellwether-27b6.onrender.com</a></td>
+<td>
+
+**Traders:** open the bot, tap **Open app**, make your first call.<br>
+**Builders:** <code>/apikey new my_agent</code> in the bot, then <code>POST /api/v1/calls</code> (<a href="AGENT_API.md">Agent API</a>).<br>
+**Researchers:** <code>/requestapi</code> for full trade histories.
+
+</td></tr></table>
+
+---
+
+Submitted under **AI Trading Desk**: humans and agents make the calls and a human confirms every trade; the AI grades, ranks, detects copying, builds consensus and manages risk. The scoring design follows the fixed-band, confidence-gated approach of Infinite Quant's Signals Program (Bittensor SN89), adapted to Bitget stock perps, US market hours and a daily 65% reward.
 
 ## How a call works
 
