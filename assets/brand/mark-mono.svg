@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Bellwether">
+  <g fill="currentColor">
+    <circle cx="256" cy="120" r="17"/>
+    <path d="M256 136c-60 0-96 46-96 106v66c0 20-10 34-26 44-9 6-5 16 6 16h232c11 0 15-10 6-16-16-10-26-24-26-44v-66c0-60-36-106-96-106z"/>
+    <path d="M226 380a30 30 0 0 0 60 0z"/>
+  </g>
+</svg>

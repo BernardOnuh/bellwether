@@ -151,7 +151,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   // ---------- onboarding ----------
   async function startOnboarding(ctx: Context, t: Trader) {
     await ctx.reply(
-      '👋 <b>Welcome to Bellwether!</b>\n\nCall where US stocks go next, get graded against live Bitget prices, '
+      '🔔 <b>Welcome to Bellwether!</b>\n\nCall where US stocks go next, get graded against live Bitget prices, '
       + 'and earn a tier on the leaderboard. The best callers steer an AI trading agent.\n\n'
       + `Your leaderboard name will be <b>${esc(t.name)}</b>.`,
       { ...HTML, reply_markup: new InlineKeyboard().text('👍 Keep this name', 'ob:keep').text('✏️ Choose another', 'ob:rename') },

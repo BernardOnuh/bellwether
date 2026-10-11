@@ -4,47 +4,59 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bellwether</title>
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
 <style>
+  /* Bellwether brand: light blue on white. Chart series validated for CVD separation on these surfaces. */
   :root {
     color-scheme: light;
-    --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #e2e1dc;
-    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #8a8984;
-    --grid: #ecebe7; --axis: #b9b8b2;
-    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+    --surface-0: #f2f8fd; --surface-1: #ffffff; --border: #dcebf7;
+    --text-primary: #0b2540; --text-secondary: #48607a; --text-muted: #8399ae;
+    --grid: #e8f1f9; --axis: #b9cfe2;
+    --brand: #2b8fdc; --brand-strong: #1f6fb4; --brand-soft: #e6f2fc; --on-brand: #ffffff;
+    --series-1: #1f86d6; --series-2: #eb6834; --series-3: #6250d6;
     --good: #0b7a3e; --bad: #c0362c; --warn-bg: #fff4d6; --warn-text: #6b4a00;
-    --chip: #ecebe7;
+    --chip: #e6f2fc;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2d2b;
-      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e87;
-      --grid: #262624; --axis: #4a4945;
-      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+      --surface-0: #08182a; --surface-1: #0f2236; --border: #1d3650;
+      --text-primary: #eef6fd; --text-secondary: #b5c9dc; --text-muted: #7f97ad;
+      --grid: #183049; --axis: #33506c;
+      --brand: #4aa8ee; --brand-strong: #7cc2f5; --brand-soft: #163049; --on-brand: #08182a;
+      --series-1: #3a97e0; --series-2: #d95926; --series-3: #9085e9;
       --good: #4cc27f; --bad: #f07368; --warn-bg: #3a2f10; --warn-text: #f3d48a;
-      --chip: #262624;
+      --chip: #163049;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2d2b;
-    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e87;
-    --grid: #262624; --axis: #4a4945;
-    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --surface-0: #08182a; --surface-1: #0f2236; --border: #1d3650;
+    --text-primary: #eef6fd; --text-secondary: #b5c9dc; --text-muted: #7f97ad;
+    --grid: #183049; --axis: #33506c;
+    --brand: #4aa8ee; --brand-strong: #7cc2f5; --brand-soft: #163049; --on-brand: #08182a;
+    --series-1: #3a97e0; --series-2: #d95926; --series-3: #9085e9;
     --good: #4cc27f; --bad: #f07368; --warn-bg: #3a2f10; --warn-text: #f3d48a;
-    --chip: #262624;
+    --chip: #163049;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--surface-0); color: var(--text-primary);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 1240px; margin: 0 auto; padding: 20px 16px 48px; }
   header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 12px; }
-  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: 24px; margin: 0; letter-spacing: -0.02em; font-weight: 750; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 44px; height: 44px; display: block; }
+  .hero { background: linear-gradient(135deg, var(--surface-1) 0%, var(--brand-soft) 100%); border: 1px solid var(--border); border-radius: 16px; padding: 16px 18px; margin-bottom: 12px; }
+  .tagline { color: var(--brand-strong); font-weight: 600; font-size: 14px; }
+  .tile .v { color: var(--text-primary); }
+  .tile { border-left: 3px solid var(--brand-soft); padding-left: 10px; }
+  .card h2 { color: var(--text-primary); }
   h2 { font-size: 15px; margin: 0 0 4px; }
   .sub { color: var(--text-secondary); font-size: 13px; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .seg button { border: 0; background: var(--surface-1); color: var(--text-secondary); padding: 6px 12px; font: inherit; cursor: pointer; }
-  .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+  .seg button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); }
   .session { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
   .banner { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; font-size: 13px; }
   .grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); align-items: start; }
@@ -64,7 +76,7 @@
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
   .tabs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .tabs button { border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); border-radius: 999px; padding: 3px 12px; font: inherit; font-size: 13px; cursor: pointer; }
-  .tabs button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+  .tabs button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
   .chart-wrap { position: relative; margin-top: 8px; }
   svg text { fill: var(--text-secondary); font-size: 11px; }
   .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 0; font-size: 13px; color: var(--text-secondary); }
@@ -78,10 +90,13 @@
 </head>
 <body>
 <main>
-  <header>
-    <div>
-      <h1>Bellwether</h1>
-      <div class="sub">Call US stocks on Bitget · earn your tier · the best callers lead the agent</div>
+  <header class="hero">
+    <div class="brand">
+      <img src="/assets/logo.svg" alt="">
+      <div>
+        <h1>Bellwether</h1>
+        <div class="tagline">Call US stocks. Earn your tier. Lead the agent.</div>
+      </div>
     </div>
     <div class="seg" role="group" aria-label="Data source">
       <button data-db="live">Live</button><button data-db="sim">Simulated replay</button>

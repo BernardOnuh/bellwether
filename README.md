@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/brand/banner-640x360.png" width="640" alt="Bellwether: call US stocks, earn your tier, lead the agent"></p>
+
 # Bellwether
 
 **Call US stocks on Bitget. Earn your tier. Lead the agent.**
@@ -146,6 +148,23 @@ What this shows, honestly:
 2. **The consensus agent's sample is tiny** (15 trades). It points the right way but proves nothing yet.
 3. **D1/D2 need time.** At 1–2 calls a day, nobody reaches 8 decided calls in 21 days. Those boards matter for a real launch, not this replay.
 4. **The skill is invented.** These numbers show the machinery working, not that real crowds have an edge. Real calls through the bot are what matter.
+
+## Brand
+
+Light blue on white. Assets live in `assets/brand/`:
+- `logo.svg`, `logo-640.png`: the app icon, a white bell with a rising line on a light-blue tile.
+- `telegram-profile-640.png`: the bot profile picture.
+- `banner-640x360.png`: the bot description picture.
+- `mark-mono.svg`: a one-colour bell.
+
+| Token | Light | Dark |
+|---|---|---|
+| Brand blue | `#2b8fdc` | `#4aa8ee` |
+| Ink | `#0b2540` | `#eef6fd` |
+| Surface / page | `#ffffff` / `#f2f8fd` | `#0f2236` / `#08182a` |
+| Chart series (tiered · consensus · everyone) | `#1f86d6` `#eb6834` `#6250d6` | `#3a97e0` `#d95926` `#9085e9` |
+
+The chart series pass colour-blind separation and contrast checks on both surfaces.
 
 ## Known gaps
 

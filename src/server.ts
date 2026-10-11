@@ -50,6 +50,13 @@ export function startDashboard(port: number) {
         res.writeHead(200, { 'content-type': 'application/json' });
         return res.end(JSON.stringify(state(url.searchParams.get('db') ?? 'live')));
       }
+      const asset = url.pathname.match(/^\/assets\/([\w.-]+\.(svg|png))$/);
+      if (asset) {
+        const file = new URL(`../assets/brand/${asset[1]}`, import.meta.url);
+        if (!existsSync(file)) return res.writeHead(404).end();
+        res.writeHead(200, { 'content-type': asset[2] === 'svg' ? 'image/svg+xml' : 'image/png', 'cache-control': 'max-age=3600' });
+        return res.end(readFileSync(file));
+      }
       if (url.pathname === '/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         return res.end(readFileSync(new URL('./dashboard.html', import.meta.url)));
