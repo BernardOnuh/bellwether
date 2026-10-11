@@ -79,13 +79,34 @@ for s0, m in zip(starts, M):
         if kind == 'whoosh' and s0 == 0: continue
         FX[kind](max(0.0, s0 + off))
 
+# ---------- voiceover + ducking ----------
+vo = [0.0] * N
+VOJ = os.path.join(V, 'vo.json')
+if os.path.exists(VOJ):
+    lines = json.load(open(VOJ))['lines']
+    for s0, m in zip(starts, M):
+        if m['name'] not in lines: continue
+        with wave.open(lines[m['name']]['wav']) as r:
+            raw = r.readframes(r.getnframes()); k0 = int((s0 + 0.5) * SR)
+            for i in range(len(raw) // 2):
+                if k0 + i < N: vo[k0 + i] += struct.unpack_from('<h', raw, 2 * i)[0] / 32768
+# music ducks to 35% under the voice, with a smooth 120 ms attack/release
+duck, lvl, a = [1.0] * N, 1.0, 1 / (0.12 * SR)
+win = int(0.05 * SR)
+active = [False] * N
+for n in range(0, N, win):
+    if any(abs(x) > 0.02 for x in vo[n:n + win]): active[n:n + win] = [True] * min(win, N - n)
+for n in range(N):
+    target = 0.35 if active[n] or active[min(N - 1, n + int(0.15 * SR))] else 1.0
+    lvl += (target - lvl) * a * 8; duck[n] = lvl
+
 # ---------- mix ----------
 out = os.path.join(V, 'soundtrack.wav')
 with wave.open(out, 'w') as w:
     w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
     frames = bytearray()
     for n in range(int(T * SR)):
-        y = 0.62 * music[n] + 0.95 * sfx[n]
+        y = 0.62 * music[n] * duck[n] + 0.8 * sfx[n] + 1.15 * vo[n]
         y = math.tanh(1.3 * y) / math.tanh(1.3)          # gentle soft-clip
         frames += struct.pack('<h', int(max(-1, min(1, y)) * 32000))
     w.writeframes(bytes(frames))

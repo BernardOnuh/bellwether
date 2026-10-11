@@ -14,3 +14,5 @@ demo-video/*.mp4
 demo-video/scenes.json
 demo-video/tg/
 demo-video/*.wav
+demo-video/vo/
+demo-video/vo.json

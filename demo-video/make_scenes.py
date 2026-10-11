@@ -75,12 +75,18 @@ scene('11-risk', 6, """<div class='center'><div class='k'>Risk, capped</div>
   <div class='b' style='font-size:27px;max-width:1350px'>Before every trade, the agent assumes <b>everything open hits its stop</b>. If that could take the account more than 10% below its peak, it doesn't trade. Plus a 3R daily stop and a kill switch.</div></div>""", [(0, 'boom')])
 scene('12-hooked', 5, "<div class='wrap'>" + cap('Built to come back to', "Streaks. Tiers.<br><span class='sky'>Your Wrapped.</span>", "A Spotify-Wrapped-style tour on first open, daily points, streaks and a weekly league. Traders come back every day.") + phones('app-tour-0', 'app-wrapped-4', 'app-league-ada', sm=True) + "</div>", [(0, 'whoosh'), (1.0, 'chime')])
 scene('13-site', 5, "<div class='wrap'>" + cap('One link', "Live now.", "Public leaderboard, trader profiles, agent API and data access, all at <b>bellwether-27b6.onrender.com</b>.") + browser(crop('site-home', 1060), 'bellwether-27b6.onrender.com') + "</div>", [(0, 'whoosh')])
-scene('14-cta', 6, f"""<div class='center'><img src='file://{LOGO}' style='width:130px;filter:drop-shadow(0 0 60px rgba(74,168,238,.7))'>
-  <div class='t' style='font-size:96px;margin:26px 0 12px'>Join the <span class='sky'>League.</span></div>
-  <div class='b' style='font-size:34px;color:#cfe6ff'>Telegram <b>@BellWetherCallsbot</b> · <b>bellwether-27b6.onrender.com</b></div>
-  <div style='margin-top:34px'><span class='chip'>📈 Make a call</span><span class='chip'>🤖 Connect your agent</span><span class='chip'>🔓 Request API access</span></div>
-  <div class='b' style='margin-top:30px;font-size:19px;color:#6c8399'>Paper trading only · no deposits · not financial advice</div></div>""", [(0, 'whoosh'), (0.6, 'success'), (1.6, 'coin')])
+QR_T = os.path.join(RAW, 'qr-telegram.png'); QR_W = os.path.join(RAW, 'qr-web.png')
+def qr(img, title, sub): return f"""<div style='display:flex;flex-direction:column;align-items:center;gap:16px'>
+  <div style='background:#fff;border-radius:34px;padding:22px;box-shadow:0 0 0 1px rgba(124,200,247,.4),0 0 80px rgba(74,168,238,.35)'><img src='file://{img}' style='width:330px;height:330px;display:block'></div>
+  <div style='font-size:30px;font-weight:800'>{title}</div><div style='font-size:22px;color:#a5dcff'>{sub}</div></div>"""
+scene('14-cta', 9, f"""<div class='center'>
+  <div style='display:flex;align-items:center;gap:22px;margin-bottom:34px'><img src='file://{LOGO}' style='width:96px;filter:drop-shadow(0 0 50px rgba(74,168,238,.7))'>
+    <div class='t' style='font-size:84px;margin:0'>Scan to <span class='sky'>get started.</span></div></div>
+  <div style='display:flex;gap:120px;align-items:flex-start'>{qr(QR_T, '📱 Telegram', '@BellWetherCallsbot')}{qr(QR_W, '🌐 Website', 'bellwether-27b6.onrender.com')}</div>
+  <div class='b' style='margin-top:34px;font-size:19px;color:#6c8399'>Paper trading only · no deposits · not financial advice</div></div>""", [(0, 'whoosh'), (0.6, 'success'), (1.6, 'coin')])
 
+VO = json.load(open(os.path.join(V, 'vo.json')))['lines'] if os.path.exists(os.path.join(V, 'vo.json')) else {}
+S = [(name, max(dur, round(VO[name]['dur'] + 1.5, 1)) if name in VO else dur, doc, sfx) for name, dur, doc, sfx in S]
 manifest = []
 for name, dur, doc, sfx in S:
     p = os.path.join(OUT, name + '.html')
