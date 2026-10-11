@@ -12,6 +12,8 @@ db.prepare('INSERT INTO quotes (pair, price, bid, ask, updated_at) VALUES (?, ?,
 saveBand(db, { pair: 'NVDAUSDT', board: 'swing', bps: 113, spread_bps: 0.4, windows: 300, listed: 1, computed_at: now });
 saveBand(db, { pair: 'NVDAUSDT', board: 'intraday', bps: 54, spread_bps: 0.4, windows: 300, listed: 1, computed_at: now });
 saveBand(db, { pair: 'SPYUSDT', board: 'intraday', bps: 2, spread_bps: 0.4, windows: 300, listed: 0, computed_at: now });
+saveBand(db, { pair: 'ORCLUSDT', board: 'd1', bps: 210, spread_bps: 3, windows: 200, listed: 1, computed_at: now });
+saveBand(db, { pair: 'ORCLUSDT', board: 'd2', bps: 300, spread_bps: 3, windows: 150, listed: 1, computed_at: now });
 
 const sent: { method: string; payload: any }[] = [];
 const tg = createBot(db, 'test:token', {
@@ -64,9 +66,21 @@ test('two-tap call: stock, then Long/Short per board; the tap locks', async () =
   assert.ok(buttons(last()).includes('k:NVDAUSDT:swing:long'));
 });
 
+test('long-term stocks offer D1 and D2 only', async () => {
+  await tap('p:ORCLUSDT');
+  assert.deepEqual(buttons(last()).filter((b: string) => b.startsWith('k:')),
+    ['k:ORCLUSDT:d1:long', 'k:ORCLUSDT:d1:short', 'k:ORCLUSDT:d2:long', 'k:ORCLUSDT:d2:short']);
+  const labels = last().reply_markup.inline_keyboard.flat().map((b: any) => b.text);
+  assert.ok(labels.includes('⬆️ Long D2 ±3.00%'));
+  assert.match(last().text, /D1 expires in 24 hours, D2 expires in 48 hours/);
+  await text('/call ORCL long HT');
+  assert.match(last().text, /ORCL trades on D1 and D2 only/);
+});
+
 test('/pairs lists every tradable stock with HT and LT bands', async () => {
   await text('/pairs');
-  assert.match(last().text, /Stocks you can trade \(15\)/);
+  assert.match(last().text, /Stocks you can trade \(30\)/);
+  assert.match(last().text, /Long-term — D1 \(24h\)[\s\S]*<b>ORCL<\/b> Oracle[\s\S]*D1 ±2\.10% · D2 ±3\.00%/);
   for (const t of ['NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'AMD', 'MU', 'AVGO', 'PLTR', 'MSTR', 'COIN', 'QQQ', 'SPY']) assert.match(last().text, new RegExp(`<b>${t}</b>`));
   assert.match(last().text, /HT ±0\.54% · LT ±1\.13%/);
   assert.ok(buttons(last()).includes('p:SPYUSDT'));

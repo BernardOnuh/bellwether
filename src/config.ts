@@ -1,39 +1,47 @@
 import 'dotenv/config';
 
 export type Direction = 'long' | 'short';
-export type BoardId = 'intraday' | 'swing';
+export type BoardId = 'intraday' | 'swing' | 'd1' | 'd2';
 
-export interface PairDef { symbol: string; label: string; name: string }
+export interface PairDef { symbol: string; label: string; name: string; group: 'liquid' | 'long' }
 
-// Bitget USDT-margined stock perpetuals (RWA). Chosen for liquidity and tight spreads.
+// Bitget USDT-margined stock perpetuals (RWA).
+// liquid: the 15 most traded names, on the short boards (HT 2h, LT 8h).
+// long:   15 well-known but thinner names, only on the long boards (D1 24h, D2 48h), where spread matters less.
+const liquid = (symbol: string, name: string): PairDef => ({ symbol, label: symbol.replace(/USDT$/, ''), name, group: 'liquid' });
+const long = (symbol: string, name: string): PairDef => ({ symbol, label: symbol.replace(/USDT$/, ''), name, group: 'long' });
 export const PAIRS: PairDef[] = [
-  { symbol: 'NVDAUSDT', label: 'NVDA', name: 'NVIDIA' },
-  { symbol: 'TSLAUSDT', label: 'TSLA', name: 'Tesla' },
-  { symbol: 'AAPLUSDT', label: 'AAPL', name: 'Apple' },
-  { symbol: 'MSFTUSDT', label: 'MSFT', name: 'Microsoft' },
-  { symbol: 'AMZNUSDT', label: 'AMZN', name: 'Amazon' },
-  { symbol: 'GOOGLUSDT', label: 'GOOGL', name: 'Alphabet' },
-  { symbol: 'METAUSDT', label: 'META', name: 'Meta' },
-  { symbol: 'AMDUSDT', label: 'AMD', name: 'AMD' },
-  { symbol: 'MUUSDT', label: 'MU', name: 'Micron' },
-  { symbol: 'AVGOUSDT', label: 'AVGO', name: 'Broadcom' },
-  { symbol: 'PLTRUSDT', label: 'PLTR', name: 'Palantir' },
-  { symbol: 'MSTRUSDT', label: 'MSTR', name: 'Strategy' },
-  { symbol: 'COINUSDT', label: 'COIN', name: 'Coinbase' },
-  { symbol: 'QQQUSDT', label: 'QQQ', name: 'Nasdaq-100 ETF' },
-  { symbol: 'SPYUSDT', label: 'SPY', name: 'S&P 500 ETF' },
+  liquid('NVDAUSDT', 'NVIDIA'), liquid('TSLAUSDT', 'Tesla'), liquid('AAPLUSDT', 'Apple'), liquid('MSFTUSDT', 'Microsoft'),
+  liquid('AMZNUSDT', 'Amazon'), liquid('GOOGLUSDT', 'Alphabet'), liquid('METAUSDT', 'Meta'), liquid('AMDUSDT', 'AMD'),
+  liquid('MUUSDT', 'Micron'), liquid('AVGOUSDT', 'Broadcom'), liquid('PLTRUSDT', 'Palantir'), liquid('MSTRUSDT', 'Strategy'),
+  liquid('COINUSDT', 'Coinbase'), liquid('QQQUSDT', 'Nasdaq-100 ETF'), liquid('SPYUSDT', 'S&P 500 ETF'),
+  long('INTCUSDT', 'Intel'), long('ORCLUSDT', 'Oracle'), long('NFLXUSDT', 'Netflix'), long('TSMUSDT', 'TSMC'),
+  long('ARMUSDT', 'Arm'), long('DELLUSDT', 'Dell'), long('QCOMUSDT', 'Qualcomm'), long('MRVLUSDT', 'Marvell'),
+  long('SMCIUSDT', 'Super Micro'), long('CRWDUSDT', 'CrowdStrike'), long('AMATUSDT', 'Applied Materials'), long('DDOGUSDT', 'Datadog'),
+  long('NKEUSDT', 'Nike'), long('BABAUSDT', 'Alibaba'), long('RKLBUSDT', 'Rocket Lab'),
 ];
 
 export const CATEGORY = 'USDT-FUTURES';
 
 const num = (k: string, d: number) => (process.env[k] ? Number(process.env[k]) : d);
 
-/** Two boards, scored separately: HT (2-hour calls) and LT (8-hour calls). Traders pick pair + direction; the board fixes band and horizon. */
-export const BOARDS: Record<BoardId, { id: BoardId; title: string; horizonMin: number; dailyCap: number; minGapMin: number }> = {
-  intraday: { id: 'intraday', title: 'HT', horizonMin: 120, dailyCap: 10, minGapMin: 10 },
-  swing: { id: 'swing', title: 'LT', horizonMin: 480, dailyCap: 3, minGapMin: 60 },
+/**
+ * Four boards, each scored separately. Traders pick pair + direction; the board fixes band and horizon.
+ * HT (2h) and LT (8h) are for liquid names; D1 (24h) and D2 (48h) for the thinner long-term names.
+ */
+export const BOARDS: Record<BoardId, { id: BoardId; title: string; hours: number; horizonMin: number; dailyCap: number; minGapMin: number; group: PairDef['group'] }> = {
+  intraday: { id: 'intraday', title: 'HT', hours: 2, horizonMin: 120, dailyCap: 10, minGapMin: 10, group: 'liquid' },
+  swing: { id: 'swing', title: 'LT', hours: 8, horizonMin: 480, dailyCap: 3, minGapMin: 60, group: 'liquid' },
+  d1: { id: 'd1', title: 'D1', hours: 24, horizonMin: 1440, dailyCap: 2, minGapMin: 120, group: 'long' },
+  d2: { id: 'd2', title: 'D2', hours: 48, horizonMin: 2880, dailyCap: 1, minGapMin: 240, group: 'long' },
 };
 export const BOARD_IDS = Object.keys(BOARDS) as BoardId[];
+/** Boards a pair can be called on. */
+export const boardsFor = (symbol: string): BoardId[] => {
+  const g = PAIRS.find((p) => p.symbol === symbol)?.group;
+  return BOARD_IDS.filter((b) => BOARDS[b].group === g);
+};
+export const boardByTitle = (s: string): BoardId | undefined => BOARD_IDS.find((b) => BOARDS[b].title.toLowerCase() === s.toLowerCase());
 
 /**
  * US equity session for calls (America/New_York). Bitget's stock perps trade around the clock,

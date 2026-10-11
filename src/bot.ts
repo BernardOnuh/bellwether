@@ -1,5 +1,5 @@
 import { Bot, InlineKeyboard, type Context } from 'grammy';
-import { AGENT, BOARDS, BOARD_IDS, PAIRS, REWARDS, SCORING, label, pairBySymbol, pairByLabel, type BoardId, type Direction } from './config.js';
+import { AGENT, BOARDS, BOARD_IDS, PAIRS, REWARDS, SCORING, boardByTitle, boardsFor, label, pairBySymbol, pairByLabel, type BoardId, type Direction } from './config.js';
 import { execute, getTrade, reject, type AgentTrade } from './agent.js';
 import { CallRejected, fmt, lockCall, type CallRow } from './calls.js';
 import { setSetting, getSetting, type DB } from './db.js';
@@ -85,10 +85,10 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     '<b>How it works</b>',
     '• Pick a stock and tap <b>Long</b> or <b>Short</b> on one of two boards. Your tap locks the live Bitget price. No take-backs.',
     `• The house sets take-profit and stop-loss: the same distance both ways (1:1), sized to how far that stock usually moves. `
-      + '<b>HT</b> calls last 2 hours, <b>LT</b> calls last 8 hours.',
+      + 'Liquid stocks: <b>HT</b> calls last 2 hours, <b>LT</b> 8 hours. Long-term stocks: <b>D1</b> calls last 24 hours, <b>D2</b> 48 hours.',
     '• ✅ take-profit first = win · ❌ stop first = loss · ➖ neither by expiry = wash (doesn\'t count).',
-    `• Calls open Mon–Fri 04:00–16:00 New York time. Limits: HT ${BOARDS.intraday.dailyCap}/day (${BOARDS.intraday.minGapMin} min apart), `
-      + `LT ${BOARDS.swing.dailyCap}/day (${BOARDS.swing.minGapMin} min apart), one open call per stock per board.`,
+    '• Calls open Mon–Fri 04:00–16:00 New York time, and no call may run into the weekend (so D1 closes Thursday, D2 Wednesday).',
+    `• Limits per day: ${BOARD_IDS.map((b) => `${BOARDS[b].title} ${BOARDS[b].dailyCap} (${BOARDS[b].minGapMin >= 60 ? BOARDS[b].minGapMin / 60 + 'h' : BOARDS[b].minGapMin + ' min'} apart)`).join(' · ')}. One open call per stock per board.`,
     '',
     `<b>🏆 Daily rewards — the ${pctN(REWARDS.minRate)} club</b>`,
     `• Every trading day at midnight New York, you earn a share of <b>${REWARDS.dailyPool.toLocaleString()} points</b> if your last `
@@ -108,7 +108,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   const helpText = [
     '<b>Commands</b>',
     '/pairs — all stocks you can trade, with prices and bands',
-    '/call — make a call (or <code>/call NVDA long LT</code>)',
+    '/call — make a call (or <code>/call NVDA long LT</code>, <code>/call ORCL short D2</code>)',
     '/mycalls — your recent calls',
     '/stats — your tier, points and progress',
     '/leaderboard — daily rewards: the 65% club',
@@ -127,7 +127,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
 
   const TUTORIAL = [
     () => '<b>1/3 · Making a call</b>\n\nPick a stock, then tap <b>Long</b> (up) or <b>Short</b> (down) on the '
-      + '<b>HT</b> (2 hours) or <b>LT</b> (8 hours). That\'s it: two taps.\n\n'
+      + '<b>HT</b> (2 hours) or <b>LT</b> (8 hours). Long-term stocks use <b>D1</b> (24 hours) and <b>D2</b> (48 hours). That\'s it: two taps.\n\n'
       + 'Your tap locks the live price. The house sets take-profit and stop at the same distance, so every call is an equal test of skill.\n\n'
       + exampleLine(),
     () => '<b>2/3 · How you earn</b>\n\n✅ take-profit first = win · ❌ stop first = loss · ➖ neither = wash (doesn\'t count)\n\n'
@@ -226,15 +226,17 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   bot.command('rules', (ctx) => ctx.reply(rulesText(), HTML));
 
   // ---------- views ----------
-  /** Every stock you can trade, with live price and the HT / LT take-profit/stop distance. */
+  /** Every stock you can trade, grouped by the boards it trades on, with live price and band per board. */
   async function showPairs(ctx: Context) {
-    const lines = PAIRS.map((p) => {
-      const q = loadQuote(db, p.symbol);
-      const bands = BOARD_IDS.map((b) => { const x = loadBand(db, p.symbol, b); return `${short(b)} ${x?.listed ? bandPct(x.bps) : '—'}`; });
+    const line = (symbol: string) => {
+      const p = pairBySymbol(symbol)!, q = loadQuote(db, symbol);
+      const bands = boardsFor(symbol).map((b) => { const x = loadBand(db, symbol, b); return `${short(b)} ${x?.listed ? bandPct(x.bps) : '—'}`; });
       return `<b>${p.label}</b> ${esc(p.name)} · ${q ? fmt(q.price, q.price) : '…'}\n   ${bands.join(' · ')}`;
-    });
-    await ctx.reply(`<b>Stocks you can trade (${PAIRS.length})</b>\n${sessionLine(Date.now())}\n\n${lines.join('\n')}\n\n`
-      + 'HT = 2-hour calls · LT = 8-hour calls. ± is the take-profit and stop distance, recalibrated daily. Tap a stock to call it:',
+    };
+    const group = (g: 'liquid' | 'long') => PAIRS.filter((p) => p.group === g).map((p) => line(p.symbol)).join('\n');
+    await ctx.reply(`<b>Stocks you can trade (${PAIRS.length})</b>\n${sessionLine(Date.now())}\n\n`
+      + `<b>⚡ Liquid — HT (2h) · LT (8h)</b>\n${group('liquid')}\n\n<b>🕰 Long-term — D1 (24h) · D2 (48h)</b>\n${group('long')}\n\n`
+      + '± is the take-profit and stop distance, recalibrated daily. Tap a stock to call it:',
       { ...HTML, reply_markup: pairKeyboard() });
   }
 
@@ -248,7 +250,8 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     const now = Date.now();
     if (!sessionOpen(now)) return ctx.reply(`${sessionLine(now)}\n\nMeanwhile: /leaderboard · /stats · /board`);
     const kb = pairKeyboard().row().text('📋 All pairs with prices', 'm:pairs').text('Cancel', 'cancel');
-    await ctx.reply(`${sessionLine(now)}\nPick a stock:`, { reply_markup: kb });
+    const names = (g: 'liquid' | 'long') => PAIRS.filter((p) => p.group === g).map((p) => p.label).join(' ');
+    await ctx.reply(`${sessionLine(now)}\n\n⚡ HT/LT: ${names('liquid')}\n🕰 D1/D2: ${names('long')}\n\nPick a stock:`, { reply_markup: kb });
   }
 
   async function showDirection(ctx: Context, pair: string) {
@@ -256,7 +259,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     const q = loadQuote(db, pair);
     const kb = new InlineKeyboard();
     const notes: string[] = [];
-    for (const b of BOARD_IDS) {
+    for (const b of boardsFor(pair)) {
       const band = loadBand(db, pair, b);
       if (!band?.listed) { notes.push(`${BOARDS[b].title}: not listed for ${label(pair)}.`); continue; }
       if (crossesWeekend(now + BOARDS[b].horizonMin * 60_000)) { notes.push(`${BOARDS[b].title}: would run into the weekend.`); continue; }
@@ -265,7 +268,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     kb.text('← Stocks', 'm:call').text('Cancel', 'cancel');
     const text = `<b>${label(pair)}</b> · ${esc(pairBySymbol(pair)!.name)}${q ? ` · ${fmt(q.price, q.price)}` : ''}\n\n`
       + 'Tap a button to <b>lock at the live price</b>. No take-backs.\n'
-      + 'HT expires in 2 hours, LT in 8 hours.' + (notes.length ? `\n\n${notes.join('\n')}` : '');
+      + boardsFor(pair).map((b) => `${BOARDS[b].title} expires in ${BOARDS[b].hours} hours`).join(', ') + '.' + (notes.length ? `\n\n${notes.join('\n')}` : '');
     if (ctx.callbackQuery) await ctx.editMessageText(text, { ...HTML, reply_markup: kb });
     else await ctx.reply(text, { ...HTML, reply_markup: kb });
   }
@@ -293,7 +296,8 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
 
   async function showStats(ctx: Context, t: Trader) {
     const now = Date.now();
-    const blocks = BOARD_IDS.map((b) => {
+    const used = (db.prepare('SELECT DISTINCT board FROM calls WHERE trader_id = ?').all(t.id) as { board: BoardId }[]).map((r) => r.board);
+    const blocks = BOARD_IDS.filter((b) => used.length ? used.includes(b) : BOARDS[b].group === 'liquid').map((b) => {
       const s = boardStats(db, b, now).get(t.id)!;
       const need = s.qualified ? '' : `\n   ${Math.max(0, SCORING.qualifyMinDecisive - s.decisive)} more wins+losses needed, then confidence above 50% (now ${pct(s.lb)})`;
       return `<b>${BOARDS[b].title}</b>: ${statusLine(s)}\n   ${s.wins}W ${s.losses}L ${s.washes} wash · hit ${pct(s.hitRate)}`
@@ -318,7 +322,8 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   }
 
   async function showLeaderboard(ctx: Context, only?: BoardId) {
-    const parts = (only ? [only] : BOARD_IDS).map((b) => {
+    const active = BOARD_IDS.filter((b) => db.prepare('SELECT 1 FROM calls WHERE board = ? LIMIT 1').get(b));
+    const parts = (only ? [only] : active.length ? active : (['intraday', 'swing'] as BoardId[])).map((b) => {
       const rows = leaderboard(db, b).slice(0, 10);
       if (!rows.length) return `<b>${BOARDS[b].title}</b>\nNo calls yet.`;
       return `<b>${BOARDS[b].title}</b>\n` + rows.map((s, i) =>
@@ -340,8 +345,9 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     if (!pair) return ctx.reply(`Unknown stock "${esc(p)}". Try one of: ${PAIRS.map((x) => x.label).join(', ')}`);
     if (!d) return sessionOpen(Date.now()) ? showDirection(ctx, pair.symbol) : ctx.reply(sessionLine(Date.now()));
     const dir = d.toLowerCase().startsWith('l') ? 'long' : d.toLowerCase().startsWith('s') ? 'short' : null;
-    const board = !h || /^(lt|8h|swing)$/i.test(h) ? 'swing' : /^(ht|2h|intraday)$/i.test(h) ? 'intraday' : null;
-    if (!dir || !board) return ctx.reply('Usage: /call NVDA long LT   (or HT)');
+    const offered = boardsFor(pair.symbol);
+    const board = !h ? (offered.includes('swing') ? 'swing' : 'd1') : boardByTitle(h) ?? null;
+    if (!dir || !board) return ctx.reply(`Usage: /call ${pair.label} long ${offered.map((b) => BOARDS[b].title).join(' (or ')}${offered.length > 1 ? ')' : ''}`);
     await lock(ctx, t, pair.symbol, board, dir);
   });
 
@@ -365,7 +371,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
   bot.command('leaderboard', (ctx) => {
     const a = ctx.match.trim().toLowerCase();
     if (!a) return showRewards(ctx);
-    return showLeaderboard(ctx, a === 'ht' || a === '2h' ? 'intraday' : a === 'lt' || a === '8h' ? 'swing' : undefined);
+    return showLeaderboard(ctx, boardByTitle(a));
   });
   bot.command('tiers', (ctx) => showLeaderboard(ctx));
   bot.command(['pairs', 'board'], showPairs);
@@ -420,7 +426,7 @@ export function createBot(db: DB, token: string, opts: ConstructorParameters<typ
     bot,
     commands: [
       { command: 'pairs', description: 'All stocks you can trade' },
-      { command: 'call', description: 'Call a stock: long or short, HT or LT' },
+      { command: 'call', description: 'Call a stock: long or short, HT/LT/D1/D2' },
       { command: 'mycalls', description: 'Your recent calls' },
       { command: 'stats', description: 'Your tier, points and progress' },
       { command: 'leaderboard', description: 'Daily rewards leaderboard (65% club)' },

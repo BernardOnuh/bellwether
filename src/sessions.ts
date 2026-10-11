@@ -17,8 +17,8 @@ export function sessionOpen(t: number, mode = SESSION.mode): boolean {
 }
 
 /** A call may not still be running into the weekend (after Friday 20:00 ET). */
-export function crossesWeekend(expiresAt: number): boolean {
-  if (SESSION.mode === 'always') return false;
+export function crossesWeekend(expiresAt: number, mode = SESSION.mode): boolean {
+  if (mode === 'always') return false;
   const { wd, min } = etParts(expiresAt);
   return wd === 6 || wd === 0 || (wd === 5 && min > SESSION.weekendCutoffMin);
 }

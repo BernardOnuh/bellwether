@@ -2,11 +2,11 @@
 // measured from session-time window starts over the trailing 30 days. A 1:1 bracket at this
 // distance is touched on one side in about half of windows. Recalibrated daily; each call
 // freezes the band in force when it was locked.
-import { BANDS, BOARDS, BOARD_IDS, PAIRS, type BoardId } from './config.js';
+import { BANDS, BOARDS, PAIRS, boardsFor, type BoardId } from './config.js';
 import type { DB } from './db.js';
 import { history } from './history.js';
 import { allTickers, type Candle } from './market.js';
-import { sessionOpen } from './sessions.js';
+import { crossesWeekend, sessionOpen } from './sessions.js';
 import { lowerBound } from './history.js';
 
 export interface Band { pair: string; board: BoardId; bps: number; spread_bps: number; windows: number; listed: number; computed_at: number }
@@ -22,7 +22,7 @@ export function bandFromCandles(cs: Candle[], horizonMin: number, from: number, 
   const h = horizonMin * 60_000, step = strideMin * 60_000;
   const moves: number[] = [];
   for (let s = Math.ceil(from / step) * step; s + h <= to; s += step) {
-    if (!sessionOpen(s, 'us')) continue;
+    if (!sessionOpen(s, 'us') || crossesWeekend(s + h, 'us')) continue;   // only windows a call could actually have
     let i = lowerBound(cs, s);
     if (!cs[i] || cs[i].ts >= s + step) continue;
     const open = cs[i].o;
@@ -72,14 +72,14 @@ export async function refreshBands(db: DB, force = false) {
   const now = Date.now();
   await refreshQuotes(db);
   for (const p of PAIRS) {
-    const stale = BOARD_IDS.some((b) => { const x = loadBand(db, p.symbol, b); return force || !x || now - x.computed_at > BANDS.maxAgeMs; });
+    const stale = boardsFor(p.symbol).some((b) => { const x = loadBand(db, p.symbol, b); return force || !x || now - x.computed_at > BANDS.maxAgeMs; });
     if (!stale) continue;
     try {
       const day = Math.floor(now / 86_400_000) * 86_400_000;
       const cs = await history(p.symbol, '5m', day - BANDS.volWindowDays * 86_400_000, day);
       const q = loadQuote(db, p.symbol);
       const spreadBps = q ? ((q.ask - q.bid) / q.price) * 1e4 : 0;
-      for (const b of BOARD_IDS) saveBand(db, makeBand(p.symbol, b, cs, spreadBps, day));
+      for (const b of boardsFor(p.symbol)) saveBand(db, makeBand(p.symbol, b, cs, spreadBps, day));
     } catch (e) {
       console.error(`[bands] ${p.symbol}: ${e}`);
     }

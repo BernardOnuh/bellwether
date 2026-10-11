@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { BOARDS, RULES, SCORING, label, pairBySymbol, type BoardId, type Direction } from './config.js';
+import { BOARDS, RULES, SCORING, boardsFor, label, pairBySymbol, type BoardId, type Direction } from './config.js';
 import type { DB } from './db.js';
 import { loadBand, type Band } from './bands.js';
 import { candles, ticker, type Ticker } from './market.js';
@@ -26,6 +26,8 @@ export const commitHash = (c: Parameters<typeof commitPayload>[0]) => createHash
 export function checkCall(db: DB, a: { traderId: number; pair: string; board: BoardId; now: number; band?: Band; mode?: 'us' | 'always' }) {
   const board = BOARDS[a.board];
   if (!pairBySymbol(a.pair)) throw new CallRejected(`Unknown pair ${a.pair}.`);
+  if (!boardsFor(a.pair).includes(a.board))
+    throw new CallRejected(`${label(a.pair)} trades on ${boardsFor(a.pair).map((b) => BOARDS[b].title).join(' and ')} only.`);
   if (!sessionOpen(a.now, a.mode)) throw new CallRejected(sessionLine(a.now));
   if (a.mode !== 'always' && crossesWeekend(a.now + board.horizonMin * 60_000)) throw new CallRejected(`A ${board.title} call now would run into the weekend. Try the shorter board or wait for Monday.`);
   const band = a.band;
